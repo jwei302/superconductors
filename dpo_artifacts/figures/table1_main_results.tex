@@ -1,0 +1,11 @@
+\begin{tabular}{lrrrrrrr}\toprule
+pool & n & median $E$ & hr@25\\% & hr@10\\% & hr@5\\% & top-500 med & \#chemsys \\
+\midrule
+baseline (SFT) & 1999 & -9.851 & 25.01\% & 10.01\% & 5.00\% & -10.963 & 826 \\
+DPO $\beta$=0.1 \textcolor{red}{$\dagger$} & 1999 & -11.829 & 90.20\% & 82.54\% & 70.99\% & -12.395 & 158 \\
+DPO $\beta$=0.5 & 1996 & -10.111 & 33.67\% & 13.73\% & 6.21\% & -11.213 & 791 \\
+DPO $\beta$=1 & 1998 & -9.992 & 30.23\% & 12.11\% & 5.56\% & -11.079 & 797 \\
+DPO $\beta$=5 & 1998 & -9.950 & 27.73\% & 10.91\% & 5.16\% & -11.008 & 833 \\
+DPO $\beta$=25 & 1998 & -9.927 & 27.08\% & 10.06\% & 4.35\% & -10.951 & 830 \\
+\bottomrule\end{tabular}
+\% $\dagger$ chemistry-collapsed (top-10 share > 60\\%); see audit.

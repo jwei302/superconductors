@@ -1,0 +1,8 @@
+beta: 5.0
+total_timesteps: 1000
+cost_lattice: 1.0
+cost_coord: 1.0
+cost_type: 20.0
+normalize_components: false
+train_only_adapters: true
+lr: 0.0001

@@ -164,3 +164,28 @@ singlerun/
 wandb/
 runs/
 clean/
+hydra/
+
+# Pretrained model weights (download from HuggingFace; see README)
+models/
+
+# DPO training checkpoints (regenerable; see scripts/dpo/train_dpo.sbatch)
+*.ckpt
+
+# Smoke-test artifacts
+dpo_artifacts/dpo_smoke/
+
+# Generated CIFs (regenerable from sample scripts; ~50 MB each pool)
+dpo_artifacts/eval/cifs_*/
+dpo_artifacts/day1_baseline_pool/cifs_*/
+
+# SLURM logs and run-specific notes
+dpo_artifacts/**/*.out
+dpo_artifacts/**/*.err
+dpo_artifacts/**/*.log
+dpo_artifacts/day3_jobids.txt
+dpo_artifacts/test_pairs_v0.pt
+
+# Claude Code workspace
+CLAUDE.md
+.claude/
