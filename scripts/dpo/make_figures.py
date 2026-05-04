@@ -268,39 +268,37 @@ def fig_training_sigma():
 # FIG 6: compute-matched comparison — DPO@N vs SFT best-of-N
 # ============================================================
 def fig_compute_matched():
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), gridspec_kw={"wspace": 0.30})
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), gridspec_kw={"wspace": 0.32})
 
     pool_data = [
-        ("SFT @ N=2000",   baseline,           COLOR["baseline"]),
-        ("SFT @ 4N=8000",  sft8k,              "#666666"),
-        ("DPO β=1 @ 2000", pools["1"],         COLOR["1"]),
+        ("SFT (1×)",     baseline,    COLOR["baseline"]),
+        ("SFT (4×)",     sft8k,       "#666666"),
+        ("DPO β=1 (1×)", pools["1"],  COLOR["1"]),
     ]
 
-    # Left: hit-rate at T_25 with absolute hit count overlay
     names   = [p[0] for p in pool_data]
     colors  = [p[2] for p in pool_data]
     hits    = [(p[1] < T_25).sum() for p in pool_data]
     rates   = [(p[1] < T_25).mean() for p in pool_data]
 
     x = np.arange(len(names))
-    bars = axes[0].bar(x, rates, color=colors, alpha=0.85)
+    axes[0].bar(x, rates, color=colors, alpha=0.85)
     axes[0].set_xticks(x)
-    axes[0].set_xticklabels(names, fontsize=9)
-    axes[0].set_ylabel(f"hit-rate at T_25 = {T_25:.2f}")
-    axes[0].set_title("Hit-rate at threshold T_25 (matched-conditioning, varied compute)")
-    for xi, h, r in zip(x, hits, rates):
-        axes[0].text(xi, r + 0.01, f"{h} hits\n({r:.1%})", ha="center", fontsize=8)
-    axes[0].set_ylim(0, max(rates) * 1.25)
+    axes[0].set_xticklabels(names, fontsize=10)
+    axes[0].set_ylabel("hit-rate")
+    axes[0].set_title("Hit-rate at $T_{25}$")
+    for xi, r in zip(x, rates):
+        axes[0].text(xi, r + 0.01, f"{r:.1%}", ha="center", fontsize=9)
+    axes[0].set_ylim(0, max(rates) * 1.20)
 
-    # Right: top-K=500 median energy
     K = 500
     top_meds = [np.median(np.sort(p[1])[:K]) for p in pool_data]
-    bars2 = axes[1].bar(x, top_meds, color=colors, alpha=0.85)
+    axes[1].bar(x, top_meds, color=colors, alpha=0.85)
     axes[1].set_xticks(x)
-    axes[1].set_xticklabels(names, fontsize=9)
-    axes[1].set_ylabel(f"median E/atom of top-{K} (eV/atom; lower = better)")
-    axes[1].set_title(f"Top-{K} screening quality")
-    axes[1].invert_yaxis()  # lower energy at top
+    axes[1].set_xticklabels(names, fontsize=10)
+    axes[1].set_ylabel("top-500 median (eV/atom)")
+    axes[1].set_title("Top-500 screening quality")
+    axes[1].invert_yaxis()
     for xi, m in zip(x, top_meds):
         axes[1].text(xi, m, f"{m:.2f}", ha="center", va="bottom", fontsize=9)
 
