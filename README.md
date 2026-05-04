@@ -78,9 +78,44 @@ To regenerate the headline figures and LaTeX table from the committed scores: `p
 
 ## Project 2: GRPO
 
-Online policy optimization with grouped rollouts, BEE-NET, MEGNet, M3GNet, and optional phase-C proxy rewards.
+Online policy optimization against a composite BEE-NET and MEGNet reward, with optional M3GNet and proxy rewards for later-stage stability tuning. The pipeline is sample grouped rollouts -> score rewards -> normalize within each prompt group -> update the policy -> evaluate against the frozen reference model.
 
-The full RL post-training workflow is documented in [README_GRPO.md](README_GRPO.md), including environment setup, reward benchmarking, GRPO smoke tests, phase A/B/C training, and publishing guidance for teammates.
+### Prepare reward dependencies
+
+The GRPO reward stack expects BEE-NET and MEGNet under `external/`:
+
+```bash
+mkdir -p external
+git clone https://github.com/henniggroup/BEE-NET.git external/BEE-NET
+git clone https://github.com/materialyzeai/megnet.git external/megnet
+```
+
+The GRPO checkpoint path should point to a GuidedMatDiffusion policy directory containing a Lightning checkpoint, `hparams.yaml`, and `prop_scaler.pt`.
+
+### Train one GRPO checkpoint
+
+```bash
+python -m diffcsp.run_rl \
+    paths.policy_checkpoint=models/superconductor_generator \
+    grpo.schedule.max_updates=2000 \
+    grpo.rewards.m3gnet.enabled=false \
+    grpo.rewards.proxies.enabled=false
+```
+
+This phase uses grouped diffusion rollouts, BEE-NET shaping, terminal MEGNet rewards, and evaluation against the frozen reference policy.
+
+### Train with M3GNet or proxy rewards
+
+```bash
+python -m diffcsp.run_rl \
+    paths.policy_checkpoint=models/superconductor_generator \
+    grpo.schedule.max_updates=5000 \
+    grpo.rewards.m3gnet.enabled=true \
+    grpo.rewards.m3gnet.top_fraction=0.25 \
+    grpo.rewards.proxies.enabled=false
+```
+
+For phase C, train proxy rewards from offline labels, then enable `grpo.rewards.proxies.enabled=true` in [conf/grpo/default.yaml](conf/grpo/default.yaml) or on the command line. RL checkpoints (`rl_update_*.pt`) and evaluation summaries (`eval_update_*.json`) are written under `HYDRA_JOBS`.
 
 ---
 
@@ -89,4 +124,9 @@ The full RL post-training workflow is documented in [README_GRPO.md](README_GRPO
 - [GuidedMatDiffusion](https://github.com/paprakash/GuidedMatDiffusion) (Prakash et al., 2025) — base SFT model and conditioning pipeline
 - [DiffCSP](https://github.com/jiaor17/DiffCSP) (Jiao et al., NeurIPS 2023) — equivariant graph diffusion backbone
 - [Diffusion-DPO](https://arxiv.org/abs/2311.12908) (Wallace et al., CVPR 2024) — preference-optimization formulation
+- [DeepSeekMath](https://arxiv.org/abs/2402.03300) (Shao et al., 2024) — Group Relative Policy Optimization algorithmic reference
+- [Proximal Policy Optimization](https://arxiv.org/abs/1707.06347) (Schulman et al., 2017) — policy-gradient foundation for clipped RL objectives
 - [CHGNet](https://github.com/CederGroupHub/chgnet) (Deng et al., 2023) — universal pretrained energy model used for stability scoring
+- [BEE-NET superconductor discovery workflow](https://www.nature.com/articles/s41524-026-01964-8) (Gibson et al., 2026) — Eliashberg spectral-function and `T_c` reward model
+- [MEGNet](https://doi.org/10.1021/acs.chemmater.9b01294) (Chen et al., 2019) — graph-network models for crystal formation energy and electronic-property rewards
+- [M3GNet](https://www.nature.com/articles/s43588-022-00349-3) (Chen and Ong, 2022) — universal graph interatomic potential used for stability-oriented reward signals
