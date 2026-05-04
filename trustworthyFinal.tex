@@ -1,0 +1,668 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2024
+
+\PassOptionsToPackage{numbers,sort&compress}{natbib}
+
+
+
+% ready for submission
+\usepackage[preprint]{neurips_2024}
+
+
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%     \usepackage[preprint]{neurips_2024}
+
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2024}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2024}
+
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+% \usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+
+
+\title{Sparse Autoencoders for Interpreting Visual Features in FLUX.1 Diffusion Transformers}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{%
+  Lucas Zhao\\
+  Yale University \\
+  New Haven, CT 06511 \\
+  \texttt{lucas.zhao@yale.edu} \\
+  \And
+  Wenhe Zhang\\
+  Yale University \\
+  New Haven, CT 06511 \\
+  \texttt{wenhe.zhang@yale.edu} \\
+}
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{abstract}
+This project investigates the application of Sparse Autoencoders (SAEs) to understand and interpret the internal representations of text-to-image diffusion models, specifically FLUX.1-dev. We collected intermediate activations from layers 5 and 15 of FLUX.1-dev using 200 generated images from COCO prompts, trained Top-K sparse autoencoders with 4× expansion (12,288 features) achieving high reconstruction quality, and developed a CLIP-based coherence ranking method to identify interpretable features. Our analysis reveals hierarchical representation learning: layer 5 features encode spatial layout and structural properties (scene openness, vertical edges, figure-ground contrast), while layer 15 features capture high-level semantic concepts (human and animal gaze direction, object boundaries). We validate causal relevance through feature steering experiments, demonstrating that manipulating individual SAE features during generation produces predictable semantic changes—notably, bidirectional control over gaze direction in both human and animal subjects. These results establish SAE-based interpretability as a viable approach for understanding and controllably intervening in diffusion transformer generation.
+\end{abstract}
+
+\section{Project Overview \textcolor{blue}{Wenhe Zhang}}
+
+\subsection{Problem Definition}
+Text to image diffusion transformers can generate photorealistic images from natural language prompts, yet the internal mechanisms that map text conditioning and latent noise into specific visual concepts remain poorly understood. The intermediate activations inside these models are high dimensional, distributed, and difficult to interpret directly, which limits our ability to understand the model’s behavior and to intervene in a principled way.
+
+This project studies interpretability in the setting of the text-to-image diffusion transformer \textbf{FLUX.1-dev}, a large scale open weight text to image diffusion transformer. Concretely, we focus on the model’s intermediate hidden activations inside selected transformer blocks during the denoising trajectory.
+
+Our goal is twofold. First, we aim to decompose FLUX.1-dev activations into a sparse set of feature activations using Sparse Autoencoders (SAEs), with the hope that individual SAE dimensions correspond to human interpretable concepts such as objects, materials, textures, or scene attributes. Second, we aim to validate causality by performing feature steering interventions during sampling and measuring whether amplifying or suppressing a feature reliably increases or decreases the presence of the associated concept in the output, while keeping the prompt and random seed fixed. Together, these experiments assess whether SAE-derived features can serve as an interpretable interface for understanding and controlling diffusion model generation.
+
+\subsection{Motivation}
+A practical barrier to trustworthy use of text to image diffusion models is that their internal computations are not easily attributable to human meaningful concepts. Sparse Autoencoders offer a promising lens because they provide an explicit, sparse basis for rewriting a model’s internal activations into a set of feature activations that can be inspected, ranked, and intervened on. In diffusion transformers, interpretability is further complicated by the denoising trajectory: representations evolve across timesteps and may encode both coarse scene layout and fine details at different phases of sampling. If SAEs can recover stable and interpretable features from intermediate activations, then we obtain both an explanatory tool for interpreting internal representations and a potential control mechanism for causal steering.
+
+\section{Relevance to Trustworthy Aspects \textcolor{blue}{Lucas Zhao}}
+
+This project primarily addresses the \textbf{interpretability} and \textbf{explainability} of text-to-image diffusion models. Modern diffusion transformers like FLUX.1-dev generate high-quality images but operate largely as black boxes, with little understanding of how internal representations correspond to semantic concepts. By applying SAs to decompose intermediate activations into sparse, monosemantic features, we aim to make these representations more transparent and human-understandable.
+
+Our work contributes to trustworthiness in several ways:
+\begin{enumerate}
+    \item \textbf{Transparency through feature decomposition}: We demonstrate that SAE features at layer 15 exhibit semantic coherence and spatial localization corresponding to recognizable visual concepts, providing insight into how diffusion models internally represent scenes, objects, and compositional elements.
+    
+    \item \textbf{Methodology for interpretable feature discovery}: Our CLIP-based coherence ranking provides a scalable approach for identifying interpretable features among thousands of learned latents, enabling systematic analysis of model representations without exhaustive manual inspection.
+    
+    \item \textbf{Foundation for safety interventions}: While this work focuses on interpretability, the identified features provide a foundation for future safety applications. As discussed in Section 8, features corresponding to undesirable concepts could potentially be suppressed during generation to prevent unsafe outputs without model retraining---a form of inference-time safety control.
+    
+    \item \textbf{Localization of semantic processing}: By visualizing where features activate spatially within generated images, we provide evidence for how and where semantic concepts are constructed during the diffusion process, improving our understanding of potential failure modes and biases in generation.
+\end{enumerate}
+
+This interpretability-first approach aligns with broader goals in trustworthy AI: before we can reliably control or constrain model behavior, we must first understand what the model has learned and how it represents the concepts it generates.
+
+\section{Model and Dataset \textcolor{blue}{Wenhe Zhang}}
+
+We study \textbf{FLUX.1-dev}, a 12B parameter, open-source, rectified flow transformer trained using guidance distillation. We choose FLUX.1-dev because its architecture exposes transformer block activations during denoising, enabling systematic activation capture and controlled intervention at specific layers and timesteps, which are necessary for SAE based analysis and steering.
+
+For prompt selection and evaluation images, we use a subset of captions from the \textbf{Microsoft COCO} (Common Objects in Context) dataset, which contains roughly 330{,}000 images with associated natural language captions. COCO captions are short and concrete, describing everyday objects and scenes, and thus provide a broad distribution of visual concepts while keeping prompt structure relatively consistent. In our experiments, we sample 500 captions and treat each caption as a text prompt for FLUX.1-dev. For each prompt, we generate an output image using different random seeds under fixed sampling settings. We then use the resulting generations as the basis for activation collection and downstream SAE-based feature analysis.
+
+
+\section{Related Work \textcolor{blue}{Lucas Zhao}}
+
+\paragraph{Diffusion Transformer Architectures.}
+Our work builds on the Diffusion Transformer (DiT) architecture introduced by Peebles and Xie~\citep{PeeblesXie2023DiT}, which replaces the traditional U-Net denoiser with a Vision Transformer-style backbone operating on VAE latents. DiT demonstrated that transformer-based denoisers scale smoothly and achieve state-of-the-art FID scores on ImageNet. This architecture forms the foundation for FLUX.1-dev, the model we analyze in this work. Stable Diffusion 3.5~\citep{SD35HF} further developed this approach with the Multimodal Diffusion Transformer (MMDiT), which uses separate text and image streams that attend jointly, improving typography and prompt fidelity. FLUX.1-dev employs a similar dual-stream architecture, making insights from our interpretability analysis potentially applicable to this broader family of diffusion transformers.
+
+\paragraph{Sparse Autoencoders for Mechanistic Interpretability.}
+The methodological foundation for our approach comes from recent advances in language model interpretability. Templeton et al.~\citep{templeton2024scaling} demonstrated that training Sparse Autoencoders on transformer activations yields monosemantic features---sparse, interpretable latent dimensions that correspond to human-meaningful concepts. Their work showed that this approach scales with model size, with larger SAEs discovering increasingly fine-grained and abstract features. We extend this methodology from language models to diffusion transformers, hypothesizing that similar sparse decomposition can reveal the visual concepts encoded during image generation. Our CLIP-based coherence ranking provides a complementary approach for identifying interpretable features in the visual domain.
+
+\paragraph{Sampling and Reproducibility.}
+For deterministic and reproducible experiments, we employ DDIM sampling~\citep{Song2020DDIM}, which provides deterministic trajectories given a fixed random seed. This enables exact regeneration of images for activation analysis and ensures that our feature localization overlays correspond precisely to the originally generated images. Deterministic sampling is essential for our methodology, as we must capture activations at specific timesteps and later regenerate identical images to compute spatial activation maps.
+
+\paragraph{Safety and Controllable Generation.}
+While our work focuses primarily on interpretability, it connects to broader efforts in safe and controllable image generation. Safe Latent Diffusion~\citep{i2p_hf} introduced training-free safety guidance during sampling, demonstrating that inference-time interventions can modify generation behavior without retraining. Universal Guidance~\citep{UniversalGuidance2023} formalized the addition of arbitrary differentiable objectives to the sampling process. These works motivate a key application of our interpretability research: if SAE features reliably correspond to semantic concepts, they could enable targeted interventions for safety filtering or concept steering, providing more granular control than prompt-level or classifier-based approaches.
+
+
+\section{Proposed Approaches \textcolor{blue}{Lucas Zhao, Wenhe Zhang}}
+\label{sec:approaches}
+
+We propose a methodology for interpreting the internal representations of diffusion transformers by combining Sparse Autoencoders (SAEs) with a novel CLIP-based coherence ranking scheme. Our approach extends SAE-based interpretability techniques, previously demonstrated on language models, to the visual domain of text-to-image diffusion models. The key novelty lies in our feature selection strategy: rather than relying solely on activation magnitude, we rank SAE features by the semantic coherence of their top-activating images, enabling efficient discovery of interpretable features without exhaustive manual inspection.
+
+\subsection{Activation Collection Pipeline}
+
+We instrument FLUX.1-dev with forward hooks to capture intermediate representations during the diffusion process. Specifically, we target the feed-forward submodule outputs at two transformer blocks:
+\begin{itemize}
+    \item \textbf{Early layer (block 5)}: where low-level visual features are processed
+    \item \textbf{Late layer (block 15)}: where high-level compositional features are refined
+\end{itemize}
+
+For each prompt, we run a diffusion sampling process with 20 inference steps, but we only capture activations at a single denoising step, timestep 14, at both transformer block 5 and transformer block 15. We chose timestep 14 because it is a compromise point where the representation is typically specific enough to encode semantically meaningful object and attribute information, yet not so late that the image is fully locked to a particular set of details. The hooked tensor for prompt $i$ at timestep $t=14$ has shape
+\begin{equation}
+\mathbf{A}_{i,14} \in \mathbb{R}^{T \times d}, \qquad T = 4096,\ d = 3072,
+\end{equation}
+where $T$ is the number of spatial tokens and $d$ is the activation dimensionality. In practice, $T=4096$ corresponds to a $64 \times 64$ spatial token grid. Consequently, for each layer we collect $4096$ activation vectors per prompt, yielding $500 \times 4096 = 2{,}048{,}000$ total activation vectors per layer. Because we only record a single timestep per prompt, the resulting activation dataset is orders of magnitude smaller than collecting all timesteps, and can be stored and processed efficiently without requiring large-scale memory mapping.
+
+\subsection{Sparse Autoencoder Architecture}
+
+We use a $\textbf{Top-K}$ sparse autoencoder to decompose FLUX activation vectors into a small set of active, interpretable features while preserving reconstruction fidelity.
+
+\paragraph{Model Components.}
+Each SAE operates on activation vectors $\mathbf{x}\in\mathbb{R}^{d_{in}}$ with $d_{in}=3072$, and maps them into a higher-dimensional feature space $\mathbb{R}^{F}$ with $F=12288$, corresponding to a $4\times$ expansion. The model consists of a learned input-centering term $\mathbf{b}_{pre}$, a linear encoder, and a linear decoder:
+\begin{align}
+\tilde{\mathbf{x}} &= \mathbf{x} - \mathbf{b}_{pre}, \\
+\mathbf{h} &= \mathrm{ReLU}\!\left(\mathbf{W}_e \tilde{\mathbf{x}} + \mathbf{b}_e\right), \qquad \mathbf{h}\in\mathbb{R}^{F}, \\
+\hat{\mathbf{x}} &= \mathbf{W}_d \mathbf{z} + \mathbf{b}_{pre}.
+\end{align}
+
+We omit an explicit decoder bias and instead reconstruct by adding back the learned pre-bias $\mathbf{b}_{pre}$. This separates the baseline activation offset from the learned feature dictionary and makes the decoder directions easier to interpret.
+
+\paragraph{Top-$K$ Sparsification.}
+Rather than encouraging sparsity via an $\ell_1$ penalty, we enforce a fixed sparsity pattern by keeping only the $K$ largest feature activations per input:
+\begin{equation}
+\mathbf{z} = \mathrm{TopK}_K(\mathbf{h}),
+\end{equation}
+where $\mathrm{TopK}_K(\cdot)$ zeros all but the $K$ largest entries of $\mathbf{h}$ (per activation vector). Consequently, each latent code satisfies $\lVert \mathbf{z}\rVert_0 = K$ (up to ties), giving predictable and stable sparsity that is well-suited for feature-based interventions. In our implementation, $K = 1200$, 
+
+\paragraph{Training Objective.}
+Because sparsity is enforced by construction, we optimize only for reconstruction:
+\begin{equation}
+\mathcal{L}_{recon} = \frac{1}{N}\sum_{n=1}^{N}\left\lVert \mathbf{x}^{(n)} - \hat{\mathbf{x}}^{(n)} \right\rVert_2^2,
+\end{equation}
+where $N$ is the number of activation vectors used for training. In this setting, interpretability is pursued through nonnegativity from ReLU and the Top-$K$ constraint, rather than by tuning an explicit sparsity penalty.
+
+\paragraph{Initialization and Dictionary Normalization.}
+We initialize the encoder with Kaiming uniform initialization (appropriate for ReLU), set the encoder bias to zero, and initialize the decoder with the transpose of the encoder weights. During training, we renormalize decoder columns to have unit $\ell_2$ norm. This normalization reduces scale degeneracies between encoder and decoder and encourages the learned decoder columns to behave like a stable feature dictionary.
+
+\paragraph{Feature Utilization.}
+A practical concern in Top-$K$ SAEs is that some features may rarely activate. We monitor feature activation frequencies and treat persistently inactive features as dead. To improve utilization, dead features can be resampled by reinitializing their encoder and decoder directions using activation vectors that currently have high reconstruction error, reallocating capacity toward under-reconstructed structure.
+
+\paragraph{Training Configuration.}
+We train one SAE per FLUX layer using activation vectors extracted from a single denoising timestep across all generated images. Concretely, activations are stored with the layout \((500\ \text{images}) \times (20\ \text{timesteps}) \times (4096\ \text{tokens})\). For training, we slice out one timestep \(t\) and keep all spatial tokens, yielding
+\[
+N \;=\; 500 \times 4096 \;=\; 2{,}048{,}000
+\]
+activation vectors per layer. The resulting matrix of samples is loaded into RAM as \texttt{float32}, which is roughly \(N \cdot 3072 \cdot 4\) bytes, about \(23\) GiB per layer. We use a fixed random split into \(90\%\) training and \(10\%\) validation data for reproducibility, and train with batch size \(2048\).
+
+Optimization uses AdamW with learning rate \(\eta = 10^{-3}\), weight decay \(10^{-5}\), and \((\beta_1,\beta_2) = (0.9, 0.999)\). We apply gradient norm clipping with threshold \(1.0\) at every update. The learning rate schedule consists of a linear warmup for the first \(2000\) optimization steps followed by cosine decay for the remainder of training, where the total number of steps is \(\text{epochs} \times \text{batches per epoch}\). After each optimizer step, we renormalize decoder directions to keep the learned feature dictionary well conditioned for interpretation. To mitigate feature collapse, we periodically identify and resample dead features every \(5000\) optimization steps. We train for \(10\) epochs and select the best checkpoint by validation loss, while also saving periodic checkpoints and logs for later analysis. See Appendix for details on training results.
+
+\subsection{Feature Extraction and Scoring}
+
+At inference time, we capture the activation matrix at the \emph{same} denoising timestep used for SAE training, namely timestep \(14\). Denoting this captured tensor by \(\mathbf{A}_{i,14} \in \mathbb{R}^{T\times d}\), we apply the SAE encoder to every token activation \(\mathbf{A}_{i,14}[p]\) to obtain a per token feature activation matrix
+\begin{equation}
+\mathbf{Z}_{i,14} \in \mathbb{R}^{T \times F}, \qquad \mathbf{Z}_{i,14}[p,f] = z_{i,14,p,f}.
+\end{equation}
+We compute \(\mathbf{Z}_{i,14}\) in chunks over tokens to reduce memory usage.
+
+\paragraph{Image level Feature Scores.}
+For each image \(i\) and feature \(f\), we summarize per token activations by a max over positions:
+\begin{equation}
+s_{i,f} = \max_{p \in \{1,\dots,T\}} z_{i,14,p,f}.
+\end{equation}
+Stacking these values for all images produces the score matrix \(\mathbf{S} \in \mathbb{R}^{I \times F}\), where \(\mathbf{S}[i,f] = s_{i,f}\). In our setup, \(T\) corresponds to the number of image tokens (e.g., \(16\times 16=256\) at \(256\times 256\) resolution with \(16\times 16\) patches), and \(F=12288\) is the SAE hidden width.
+
+\paragraph{Alive Feature Filtering.}
+To focus on nontrivial features, we define an ``alive'' criterion: a feature \(f\) is alive if it exceeds a threshold \(\varepsilon\) on at least a small number of images:
+\begin{equation}
+f\ \text{alive} \iff \sum_{i=1}^{I_{\mathrm{valid}}} \mathbb{I}\{s_{i,f} > \varepsilon\} \ge m,
+\end{equation}
+where \(I_{\mathrm{valid}}\) is the number of completed images and \(m\) is a minimum count. We set \(\varepsilon = 2.0\) after inspecting activation statistics and use \(m=5\) to remove features that fire only once or twice. We also report the activation frequency
+\begin{equation}
+\texttt{freq}(f) = \frac{1}{I_{\mathrm{valid}}}\sum_{i=1}^{I_{\mathrm{valid}}} \mathbb{I}\{s_{i,f} > \varepsilon\},
+\end{equation}
+which measures the fraction of images that activate each feature above threshold, and use it to categorize features as rare versus common.
+
+
+\subsection{CLIP-Based Feature Coherence Ranking}
+
+Directly inspecting top-activating images for all $F$ features is infeasible. We propose ranking features by semantic coherence using CLIP image embeddings as a proxy for interpretability.
+
+We encode every generated image using a pretrained CLIP image encoder to obtain normalized embeddings $\mathbf{e}_i \in \mathbb{R}^{D}$ with $\lVert \mathbf{e}_i \rVert_2 = 1$. For each alive feature $f$, we take its top $M=20$ images by $s_{i,f}$ with a uniqueness constraint of one example per prompt index. Let $\mathcal{I}_f$ be the selected set of image indices. We define the CLIP coherence score as the mean pairwise cosine similarity:
+\begin{equation}
+C_f = \frac{2}{|\mathcal{I}_f|(|\mathcal{I}_f|-1)} \sum_{\substack{i,j \in \mathcal{I}_f\\ i<j}} \mathbf{e}_i^\top \mathbf{e}_j.
+\end{equation}
+
+Features with high $C_f$ have top-activating images that cluster tightly in semantic embedding space, suggesting they correspond to coherent visual concepts rather than generic statistical properties. This ranking strategy is particularly valuable for later layers such as layer 15, which encode higher-level or abstract concepts that may be difficult to identify from activation magnitude alone. By selecting features whose top-activating images share high visual similarity, we can more efficiently identify the semantic concept involved through overlay visualization or automated labeling.
+
+\subsection{Spatial Localization Visualization}
+
+The image-level score $s_{i,f}$ identifies which images activate a feature but does not localize where it activates. For each selected feature $f$ and each of its top examples, we regenerate the image using the exact stored \{prompt, seed\} pair and capture activations at the same layer and timestep. We then extract the per-token activation vector $\mathbf{z}^{(f)}_{i}[p] = z_{i,p,f}$ for the feature of interest.
+
+We reshape $\mathbf{z}^{(f)}_{i}$ into the $64 \times 64$ token grid and aggregate into a $16 \times 16$ grid aligned with $16 \times 16$ pixel patches in the $256 \times 256$ image. Each patch pools a $4 \times 4$ block of tokens:
+\begin{equation}
+\tilde{z}_{u,v} = \frac{1}{16} \sum_{a=1}^{4}\sum_{b=1}^{4} z_{(4u+a,\ 4v+b)},
+\qquad u,v \in \{1,\dots,16\}.
+\end{equation}
+We normalize patch values by the 99th percentile to mitigate outliers and overlay a blue translucent mask on the original image, producing discrete visualizations of feature localization.
+
+\subsection{Feature Steering Methodology}
+
+To validate that discovered features are causally relevant to generation, we implement feature steering interventions during the diffusion sampling process. Feature steering operates by modifying the SAE latent activations during the forward pass of the diffusion transformer. Given a feature $f$ and steering strength $\alpha \in \mathbb{R}$, we intervene on the reconstruction:
+\begin{equation}
+\hat{\mathbf{x}}_{\text{steered}} = \mathbf{W}_d (\mathbf{z} + \alpha \cdot \mathbf{e}_f) + \mathbf{b}_d,
+\end{equation}
+where $\mathbf{e}_f \in \mathbb{R}^F$ is the one-hot vector selecting feature $f$. This is equivalent to adding $\alpha \cdot \mathbf{d}_f$ to the reconstructed activation, where $\mathbf{d}_f$ is the $f$-th column of the decoder weight matrix $\mathbf{W}_d$.
+
+We implement steering through a forward hook on the feed-forward submodule of the target transformer block. The hook intercepts the activation tensor, applies the SAE encoder-decoder with the modified latent, and returns the steered output. Critically, we restrict steering to early timesteps $t \in [0, t_{\max}]$ of the diffusion trajectory, as semantic layout decisions are primarily determined in initial denoising steps while later steps refine fine details.
+
+\paragraph{Steering Hook Implementation.}
+For each forward pass during generation, the steering hook:
+\begin{enumerate}
+    \item Extracts image tokens from the activation tensor (excluding text conditioning tokens)
+    \item Encodes activations through the SAE: $\mathbf{z} = \mathrm{ReLU}(\mathbf{W}_e \mathbf{x} + \mathbf{b}_e)$
+    \item Adds the steering signal: $\mathbf{z}'[f] = \mathbf{z}[f] + \alpha$
+    \item Decodes back to activation space: $\hat{\mathbf{x}} = \mathbf{W}_d \mathbf{z}' + \mathbf{b}_d$
+    \item Replaces the original image token activations with steered values
+\end{enumerate}
+
+We apply steering only during timesteps $t \in [0, 5]$ out of 20 total inference steps, corresponding to the coarse structure formation phase of diffusion sampling. Although we train our SAE on activations collected at timestep 14, the learned decoder directions often correspond to feature subspaces that are reused across the denoising trajectory, so applying the same feature level intervention earlier steps 0 to 5 can still influence the evolving representation, often with a larger downstream effect because early changes can cascade through many subsequent denoising iterations.
+
+\subsection{Demo Selection via LPIPS Responsiveness}
+
+Not all prompt-seed combinations respond equally well to steering. Images where a feature is already saturated (maximally active) have little room for amplification, while images where the feature is inactive may require implausibly large interventions. We develop a two-stage selection pipeline to identify optimal demonstrations.
+
+\paragraph{Stage 1: Activation-Based Candidate Filtering.}
+For each feature $f$, we select candidate images where the feature activation falls within a moderate range---active enough to be relevant, but not saturated:
+\begin{equation}
+\mathcal{C}_f = \left\{ i : s_{i,f} \in \left[ Q_{p_{\min}}(\mathbf{s}_f), Q_{p_{\max}}(\mathbf{s}_f) \right] \right\},
+\end{equation}
+where $Q_p(\mathbf{s}_f)$ denotes the $p$-th percentile of feature $f$'s activation scores across all images, and we set $p_{\min} = 70$ and $p_{\max} = 95$. This filters to images in the 70th--95th percentile of activation, ensuring relevance without saturation.
+
+\paragraph{Stage 2: LPIPS Responsiveness Scoring.}
+For each candidate, we generate three images using identical prompt and seed: a baseline (no steering), positive steering ($+\alpha$), and negative steering ($-\alpha$). We measure perceptual change using LPIPS distance~\citep{zhang2018perceptual}:
+\begin{equation}
+d^+_i = \mathrm{LPIPS}(I_{\text{baseline}}, I_{+\alpha}), \qquad d^-_i = \mathrm{LPIPS}(I_{\text{baseline}}, I_{-\alpha}).
+\end{equation}
+
+We evaluate candidates on two criteria. The first is magnitude: larger LPIPS distances indicate stronger visual response to steering. The second is directional consistency: good demonstrations should change comparably in both directions, indicating symmetric feature behavior:
+\begin{equation}
+\mathrm{consistency}_i = \frac{\min(d^+_i, d^-_i)}{\max(d^+_i, d^-_i)}.
+\end{equation}
+
+We combine these into a single responsiveness score:
+\begin{equation}
+R_i = \frac{d^+_i + d^-_i}{2} \cdot \left( 0.5 + 0.5 \cdot \mathrm{consistency}_i \right),
+\end{equation}
+which balances average perceptual change with directional symmetry. Candidates are ranked by $R_i$, and the top-scoring examples are selected as demonstrations.
+
+\paragraph{Multi-Strength Evaluation.}
+We test multiple steering strengths $\alpha \in \{50, 100, 200\}$ for each candidate and select the strength achieving highest responsiveness score. This accounts for feature-specific sensitivity: some features produce visible changes at $\alpha = 50$, while others require $\alpha = 200$ for comparable effect.
+
+\subsection{Steering Grid Assembly}
+
+For each selected demonstration, we generate a complete steering grid spanning symmetric strength values $\alpha \in \{-200, -100, -50, 0, +50, +100, +200\}$. All images in a grid share identical prompt and random seed, isolating the effect of feature steering from other sources of variation. Grids are assembled with strength labels for visual comparison of the steering trajectory.
+
+
+
+
+\section{Experiments \textcolor{blue}{Lucas Zhao, Wenhe Zhang}}
+\label{sec:experiments}
+
+\subsection{Dataset}
+
+We use the Microsoft COCO (Common Objects in Context) dataset for activation collection and evaluation. COCO contains approximately 330,000 images with detailed captions and annotations spanning diverse object categories, scenes, and compositional patterns.
+
+\paragraph{Prompt Set Construction.}
+For computational efficiency, we sample $P=100$ captions from COCO and treat each as a text prompt. We generate each prompt twice with different random seeds, yielding $I = 2P = 200$ generated images. For prompt index $p \in \{0,\dots,P-1\}$ and repetition $r \in \{0,1\}$, we set:
+\begin{equation}
+\mathrm{seed}(p,r) = s_0 + 2p + r,
+\end{equation}
+where $s_0$ is a constant base seed. Each generated image is deterministically reproducible via the triplet \{prompt, seed, configuration\}.
+
+\paragraph{Image Generation.}
+All experiments use FLUX.1-dev with spatial resolution $256 \times 256$ and 20 diffusion inference steps using DDIM sampling~\citep{Song2020DDIM} for deterministic, reproducible trajectories.
+
+\paragraph{Training Data Statistics.}
+For SAE training, we collect activations at timestep 14 across all 500 prompts. Each prompt yields $T = 4096$ activation vectors (one per spatial token), resulting in $500 \times 4096 = 2{,}048{,}000$ training samples per layer. Each activation vector has dimension $d = 3{,}072$, yielding approximately 23 GB of training data per layer.
+
+\subsection{Evaluation Metrics}
+
+We evaluate our approach using the following metrics:
+
+\paragraph{Reconstruction Quality.}
+Mean squared error (MSE) between original activations $x$ and SAE reconstructions $\hat{x}$, measuring how well the sparse representation preserves information.
+
+\paragraph{Feature Sparsity.}
+Percentage of features with non-zero activation, measuring the degree of disentanglement achieved by the SAE.
+
+\paragraph{CLIP Coherence Score.}
+Mean pairwise cosine similarity $C_f$ of CLIP embeddings for a feature's top-activating images, measuring semantic consistency.
+
+\subsection{SAE Training Results}
+
+Both SAEs achieve stable convergence within 30 epochs (Figures~\ref{fig:training_layer5} and~\ref{fig:training_layer15}). Table~\ref{tab:sae_results} summarizes the final metrics.
+
+\begin{table}[ht]
+\centering
+\caption{TopK SAE Training Results by Layer}
+\label{tab:sae_results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Layer} & \textbf{Final Recon. MSE} & \textbf{L0 Sparsity} & \textbf{\% Features Active} & \textbf{Alive Features} \\
+\midrule
+Layer 5 & $6.0 \times 10^{-2}$ & 1200 & 9.77\% & $\sim$2,500 \\
+Layer 15 & $1.1 \times 10^{-1}$ & 1200 & 9.77\% & $\sim$2,500 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The training curves can be found in the Appendix. They reveal several key patterns characteristic of Top-$K$ SAEs:
+
+\begin{enumerate}
+    \item \textbf{Rapid Initial Convergence}: Reconstruction loss drops by approximately one order of magnitude in the first 5 epochs for both layers, from 0.63 to 0.09 for Layer 5 and from 0.85 to 0.15 for Layer 15. This indicates that the SAE quickly learns the dominant structure in the activation space.
+    
+    \item \textbf{Fixed Sparsity by Construction}: Unlike L1-penalized SAEs, the Top-$K$ mechanism guarantees exactly $K=1200$ active features per sample throughout training. The ``\% Features Active'' panel confirms the constant 9.77\% activation rate ($1200/12288$), and the ``L0 Sparsity'' panel shows the fixed count of 1200 active features per sample.
+    
+    \item \textbf{No Sparsity-Reconstruction Trade-off}: The L1 Loss panel shows zero throughout training because sparsity is enforced structurally rather than through a penalty term. The optimization focuses purely on minimizing reconstruction error subject to the fixed sparsity constraint.
+    
+    \item \textbf{Layer-Dependent Reconstruction Quality}: Layer 15 exhibits higher final reconstruction error (0.11 vs 0.06), suggesting that later-layer activations have more complex structure that is harder to compress into 1,200 active features. This aligns with expectations that later layers encode higher-level semantic content with greater variability across inputs.
+    
+    \item \textbf{Feature Utilization}: Despite having 12,288 feature dimensions, only approximately 2,000--3,000 features are ever selected by the Top-$K$ mechanism across the training set (Figures~\ref{fig:density_layer5} and~\ref{fig:density_layer15}). The remaining $\sim$10,000 features are ``dead''---never among the top 1,200 activations for any input. This concentration of representational capacity in a subset of features is characteristic of Top-$K$ training without dead feature resampling.
+\end{enumerate}
+
+The decoder direction analysis (Figures~\ref{fig:directions_layer5} and~\ref{fig:directions_layer15}) confirms that decoder columns maintain unit norm (1.000) throughout training due to the normalization step after each optimizer update. Encoder directions have norms close to unity (1.0--1.3), and encoder-decoder cosine similarities are high (0.77--0.98), indicating that the encoder and decoder learn approximately aligned directions for each feature. The similarity matrices (Figures~\ref{fig:matrix_layer5} and~\ref{fig:matrix_layer15}) reveal that learned features are approximately orthogonal, with pairwise cosine similarities typically below 0.03 in magnitude. This geometric independence suggests that distinct SAE features capture non-redundant aspects of the activation space, supporting their use as an interpretable basis.
+
+\subsection{Activation Pattern Analysis}
+
+We first analyze raw activation patterns before SAE encoding to understand the hierarchical structure of FLUX.1-dev representations.
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{dog_beach.png}
+        \caption{Dog on beach}
+        \label{fig:dog_beach}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{dog_bed.png}
+        \caption{Dog on bed}
+        \label{fig:dog_bed}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{dog_comparison_layer5.png}
+        \caption{Activation comparison at layer 5}
+        \label{fig:dog_layer5}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{dog_comparison_layer15.png}
+        \caption{Activation comparison at layer 15}
+        \label{fig:dog_layer15}
+    \end{minipage}
+\end{figure}
+
+Figures~\ref{fig:dog_beach}--\ref{fig:dog_layer15} show activations at layers 5 and 15, timestep 10, for prompts ``a black dog is sitting in his dog bed'' and ``A small black dog sitting on top of a sandy beach''. Early layer activations exhibit general, coarse image features, primarily outlining object contours and overall shapes. Later layer activations focus on finer features including fur texture, nose shape, and inner details.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.6\textwidth]{elephants.png}
+    \caption{Generated image: ``Elephants being bathed in a body of water by people in sun hats''}
+    \label{fig:elephants}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{elephants_timestep_evolution_layer5.png}
+        \caption{Activation evolution at layer 5}
+        \label{fig:elephants_layer5}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{elephants_timestep_evolution_layer15.png}
+        \caption{Activation evolution at layer 15}
+        \label{fig:elephants_layer15}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{elephants_stats_layer5.png}
+        \caption{Activation statistics at layer 5}
+        \label{fig:elephants_stats5}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{elephants_stats_layer15.png}
+        \caption{Activation statistics at layer 15}
+        \label{fig:elephants_stats15}
+    \end{minipage}
+\end{figure}
+
+Figures~\ref{fig:elephants}--\ref{fig:elephants_stats15} show activation evolution across timesteps 5, 10, 15, and 20 for the elephant prompt. Notably, activation magnitude at timestep 20 for layer 5 peaks sharply after remaining relatively stable, potentially indicating sensitivity to global image properties like lighting or contrast at final refinement stages.
+
+\subsection{CLIP-Coherent Feature Discovery}
+
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=0.95\linewidth, height=0.85\textheight]{contact_sheet_comparison.png}
+    \caption{Top 10 SAE features selected by CLIP coherence at layer 15 with spatial activation overlays. Each row shows one feature's top 4 activating images with $16\times 16$ patch heatmaps indicating where the feature activates. Features are labeled with their CLIP coherence scores (coh).}
+    \label{fig:clip_coherent_overlays}
+\end{figure}
+
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=0.95\linewidth, height=0.85\textheight]{contact_sheet_comparison_layer5.png}
+    \caption{Top 10 SAE features selected by CLIP coherence at layer 5 with spatial activation overlays. Each row shows one feature's top 4 activating images with $16\times 16$ patch heatmaps indicating where the feature activates.}
+    \label{fig:clip_coherent_overlays_layer5}
+\end{figure}
+
+Figures~\ref{fig:clip_coherent_overlays} and~\ref{fig:clip_coherent_overlays_layer5} show the top 10 CLIP-coherent features at layers 15 and 5 respectively. The two layers reveal qualitatively different feature types, providing evidence for hierarchical representation learning in diffusion transformers.
+
+\paragraph{Layer 15: Semantic Features.}
+Layer 15 features (coherence 0.608--0.627) group images by semantic content. Feature 10249 activates precisely on animal faces across species---dogs, cats, and horses---with strong localization on the eye and snout regions. Feature 1058 shows analogous behavior for human faces, activating on children's faces with emphasis on the mouth region. Feature 4252 responds to strong vertical elements including human figures, dark silhouettes, and elongated objects, with activation concentrated along edges rather than object interiors. Features 1714 and 12139 encode scene structure, responding to windows, light sources, and background walls respectively.
+
+\paragraph{Layer 5: Structural Features.}
+Layer 5 features achieve comparable or higher coherence scores (0.623--0.647) but encode lower-level properties. Feature 8259, the highest-coherence feature, activates on dark silhouettes against light backgrounds regardless of object identity---encoding figure-ground contrast rather than semantic categories. Features 10473 and 3934 consistently activate on upper image regions (skies, ceilings, horizons), encoding \textit{where} in the image rather than \textit{what}. Features 9144, 3260, and 8590 respond to geometric regularity: vertical structures, tile patterns, and architectural elements.
+
+\paragraph{Hierarchical Organization.}
+The key distinction is the level of abstraction: layer 5 features group images by structural properties (spatial position, geometric patterns, figure-ground contrast), while layer 15 features group images by semantic content (faces, object types, scene elements). Both layers achieve similar CLIP coherence because CLIP embeddings capture both low-level and high-level visual similarity, but layer 15 features are more readily interpretable in terms of human-meaningful concepts. This hierarchy mirrors findings in discriminative vision models and suggests that generative diffusion models learn similar representational progressions.
+
+\subsection{Feature Steering Results}
+
+To validate that discovered features are causally relevant to generation, we perform steering interventions during diffusion sampling. Figures~\ref{fig:steering_layer15} and~\ref{fig:steering_layer5} show steering grids for selected features, with strength varying from $\alpha = -200$ to $+200$.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\textwidth]{contact_sheet_layer15.png}
+    \caption{Steering grids for selected features at layer 15. Each row shows one feature applied to one prompt-seed pair, with steering strength varying from $-200$ (left) to $+200$ (right). The baseline image ($\alpha = 0$) appears at center.}
+    \label{fig:steering_layer15}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\textwidth]{contact_sheet_layer5.png}
+    \caption{Steering grids for selected features at layer 5. Compared to layer 15, these features control lower-level properties such as scene composition and spatial layout rather than high-level semantic attributes.}
+    \label{fig:steering_layer5}
+\end{figure}
+
+\paragraph{Layer 15 Steering.}
+The face features (1058, 10249) produce consistent control over gaze direction: negative steering causes subjects to look away with alert, open eyes, while positive steering yields downcast gaze with partially closed eyes. This bidirectional control confirms that these features encode a continuous semantic dimension rather than binary presence/absence. Feature 4252 (edges) modulates boundary sharpness---negative values soften edges while positive values enhance crispness.
+
+\paragraph{Layer 5 Steering.}
+Feature 10473 (upper regions) controls scene openness: negative steering produces cluttered compositions with additional objects filling the frame, while positive steering yields sparser, more open scenes. Features 3260 and 9144 (vertical structures) modulate pattern granularity---positive steering increases tile visibility and adds structural elements, while negative steering simplifies compositions.
+
+\paragraph{Activation-Steering Alignment.}
+Critically, steering effects align with activation patterns: gaze features affect eyes while leaving backgrounds stable; composition features change spatial arrangement while preserving object identities. This localization confirms that SAE features provide targeted control without global image disruption, validating their causal relevance to the generation process.
+
+\subsection{Analysis of Steering Behavior}
+
+Our steering experiments reveal several patterns about the learned feature space:
+
+\paragraph{Layer-Dependent Semantics.}
+Layer 15 features encode high-level semantic attributes (gaze direction, edge definition) that can be manipulated independently of scene composition. Layer 5 features control spatial layout and structural properties that downstream layers build upon. This hierarchy aligns with the feature discovery results: early layers establish spatial organization while later layers refine semantic content.
+
+\paragraph{Bidirectional Control.}
+Most features exhibit meaningful behavior in both steering directions, suggesting they encode continuous semantic dimensions. The gaze features exemplify this: the full range from ``looking away alertly'' to ``downcast gaze'' represents a coherent semantic axis that can be traversed smoothly.
+
+\paragraph{Strength-Response Characteristics.}
+Visual inspection suggests approximately linear response to steering strength in the tested range $|\alpha| \leq 200$. Extreme values occasionally produce artifacts (color shifts, geometric distortions), indicating boundaries of the valid intervention regime.
+
+\subsection{Implications for Controllable Generation}
+
+These results validate the causal relevance of CLIP-coherent SAE features and demonstrate a practical pathway for inference-time control of diffusion models:
+
+\begin{enumerate}
+    \item \textbf{Concept-level editing}: Users could adjust specific visual attributes (gaze, composition, edge sharpness) without regenerating from scratch or modifying prompts.
+    
+    \item \textbf{Safety filtering}: Features corresponding to undesirable content could be suppressed during generation, providing fine-grained content control without model retraining.
+    
+    \item \textbf{Style transfer}: Combinations of feature interventions could enable complex style transformations by simultaneously adjusting multiple semantic dimensions.
+\end{enumerate}
+
+The combination of interpretable feature discovery (via CLIP coherence) and validated causal control (via steering) provides a complete pipeline for understanding and manipulating diffusion model representations.
+
+
+\section{Discussion and Future Work \textcolor{blue}{Lucas Zhao, Wenhe Zhang}}
+
+\subsection{Summary of Contributions}
+This work demonstrates that sparse autoencoders can successfully decompose the internal representations of diffusion transformers into interpretable, causally relevant features. Our contributions are threefold:
+
+\paragraph{SAE Training for Diffusion Transformers.}
+We trained Top-$K$ SAEs on two layers of FLUX.1-dev (blocks 5 and 15), achieving low reconstruction error while maintaining fixed 9.77\% sparsity. The learned features exhibit approximate orthogonality (pairwise cosine similarities below 0.03), supporting their use as an interpretable basis for the activation space.
+
+\paragraph{CLIP-Based Feature Discovery.}
+We introduced a CLIP coherence ranking method that efficiently identifies semantically meaningful features among thousands of learned latents. This approach revealed hierarchical representation structure: layer 5 features encode spatial layout and structural properties (figure-ground contrast, geometric patterns, spatial regions), while layer 15 features capture semantic content (human and animal faces, object boundaries, scene elements).
+
+\paragraph{Causal Validation via Steering.}
+We validated the causal relevance of discovered features through steering interventions during generation. Manipulating individual features produces predictable, localized effects---notably, bidirectional control over gaze direction in both human and animal subjects, and modulation of scene composition density. The alignment between activation patterns and steering effects confirms that SAE features provide targeted control without global image disruption.
+
+\subsection{Limitations}
+Several limitations constrain the scope and generalizability of our findings:
+
+\paragraph{Experiment Setup Choice.}
+Our SAE is trained on feed-forward activations from transformer blocks at a single denoising timestep \(t=14\). These activations are not guaranteed to reveal object related concepts. In late blocks and late timesteps, representations often mix global composition, lighting, and denoising control signals with local refinement cues, which makes it easier for the SAE to recover stable low-level or part-level patterns than discrete object concepts. This choice of timestep further biases the learned features toward whatever is most salient during refinement, after much of the scene layout is already determined. Prior interpretability work has reported more semantically aligned features when probing residual stream representations, suggesting that future work should explore training SAEs on residual activations and across multiple timesteps or step ranges where object selection and spatial placement are still being negotiated.
+
+
+\paragraph{Limited scale and diversity.}
+Our analysis is based on only 200 generated images from 100 COCO prompts.
+While sufficient for proof-of-concept, this limited dataset may not capture the full diversity of visual concepts encoded by FLUX.1-dev.
+A more comprehensive study would require thousands of prompts spanning diverse categories, styles, and compositional patterns.
+
+\paragraph{CLIP coherence as a proxy for interpretability.}
+We use CLIP embedding similarity as a practical heuristic for semantic coherence, but this is an indirect measure of true interpretability.
+CLIP itself has known limitations in spatial reasoning, fine-grained attributes, and compositional understanding.
+A feature could have high CLIP coherence yet fail to correspond to a human-interpretable concept, or conversely, a truly meaningful feature could score low if CLIP does not capture the relevant semantic dimension.
+
+\paragraph{Shallow analysis depth.}
+We manually inspected only the top 10 CLIP-coherent features per layer.
+The remaining 12,278 features remain largely uncharacterized.
+A complete interpretability assessment would require systematic labeling (manual or LLM-assisted) of a much larger feature subset to estimate what fraction of learned features are genuinely monosemantic.
+
+\subsection{Future Directions}
+
+\paragraph{Safety and concept removal.}
+A high-impact application is automated safety steering.
+If SAE features reliably correspond to undesirable concepts (e.g., violence, inappropriate content, copyrighted characters), we could implement real-time feature suppression to prevent generation of unsafe images without retraining the base model.
+This requires first identifying and labeling safety-relevant features, then validating that suppression effectively removes unwanted content without degrading overall image quality.
+
+\paragraph{Scaling to full dataset and additional layers.}
+Training SAEs on the full COCO dataset (or larger corpora such as CC3M) and analyzing features across all 19 transformer blocks would provide a more complete picture of how FLUX.1-dev's internal representations evolve.
+Cross-layer feature comparison could reveal how low-level primitives compose into high-level concepts and identify which layers are most amenable to semantic interventions.
+
+\paragraph{Automated feature labeling with vision-language models.}
+Manual inspection of thousands of features is infeasible.
+Recent vision-language models (e.g., GPT-4V, Gemini) could be used to automatically generate candidate labels by analyzing top-activating images and spatial overlays for each feature.
+Combining automated labeling with human validation would enable systematic characterization of the full learned feature space.
+
+\paragraph{Multi-modal steering and composition.}
+Beyond single-feature interventions, we could explore compositional steering by simultaneously modifying multiple features to achieve complex semantic transformations (e.g., changing ``outdoor scene'' to ``indoor scene'' while preserving the primary subject).
+Understanding feature interactions and discovering orthogonal or synergistic feature pairs would advance toward more flexible, user-controllable generation.
+
+\subsection{Broader Impact}
+This work contributes to the emerging field of mechanistic interpretability for generative models.
+By demonstrating that diffusion transformer representations can be decomposed into sparse, localized, and semantically coherent features, we provide evidence that these models may be more interpretable than previously assumed.
+If interpretability methods continue to improve, they could enable safer deployment of generative AI through better understanding of failure modes, more effective content filtering, and increased transparency in how these systems produce their outputs.
+
+
+\nocite{*}
+
+\bibliographystyle{unsrtnat}    % numeric, unsorted -> appears in order of first citation
+\bibliography{ref}
+
+\newpage
+
+\appendix
+\section{Appendix}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{training_curves_layer5.png}
+    \caption{Training Curves for SAE on Layer 5}
+    \label{fig:training_layer5}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{training_curves.png}
+    \caption{Training Curves for SAE on Layer 15}
+    \label{fig:training_layer15}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\textwidth]{feature_density_layer5.png}
+    \caption{Feature Density for SAE on Layer 5}
+    \label{fig:density_layer5}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\textwidth]{feature_density.png}
+    \caption{Feature Density for SAE on Layer 15}
+    \label{fig:density_layer15}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[height=\textheight,keepaspectratio]{decoder_directions_layer5.png}
+    \caption{Decoder Directions for SAE on Layer 5}
+    \label{fig:directions_layer5}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[height=\textheight,keepaspectratio]{decoder_directions.png}
+    \caption{Decoder Directions for SAE on Layer 5}
+    \label{fig:directions_layer15}
+\end{figure}
+
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{decoder_similarity_matrix_layer5.png}
+        \caption{Decoder Similarity Matrix for SAE on Layer 5}
+        \label{fig:matrix_layer5}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{decoder_similarity_matrix.png}
+        \caption{Decoder Similarity Matrix for SAE on Layer 15}
+        \label{fig:matrix_layer15}
+    \end{minipage}
+\end{figure}
+
+\end{document}

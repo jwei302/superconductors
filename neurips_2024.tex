@@ -1,0 +1,283 @@
+\documentclass{article}
+
+\usepackage[preprint]{neurips_2024}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{siunitx}
+
+\newcommand{\Tc}{T_{\mathrm{c}}}
+\newcommand{\Ehull}{E_{\mathrm{hull}}}
+\newcommand{\Eform}{E_{\mathrm{form}}}
+
+\title{RL-Guided Diffusion for Inverse Design of Superconducting Crystal Structure}
+
+\author{
+  Jeffrey Wei \\
+  Yale University \\
+  \texttt{jeffrey.wei@yale.edu}
+  \And
+  Wenhe Zhang \\
+  Yale University \\
+  \texttt{wenhe.zhang@yale.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+\section{Research problem definition}
+Given a desired superconducting target (e.g., $\Tc \ge 5\,$K), generate \emph{novel} periodic crystal structures whose downstream post-validation pass rate is high, reducing the number of expensive candidates that must be validated per final viable superconductor. Guided diffusion models can generate many candidate crystals, but the majority fail multi-stage physical screening (metallicity, stability, phonons), so overall discovery is still bottlenecked by validation cost.
+If we can directly optimize the generator toward passing the screens, we can increase the yield of viable candidates per compute. The base model learns a conditional distribution over lattice parameters and fractional atomic coordinates (and element types) for periodic crystals.
+Our proposed methods modify the generator so that its \emph{sampling distribution} shifts toward that of structures with higher expected screening reward while remaining close to the pretrained structural prior, to preserve physical plausibility. On a fixed sampling budget (e.g., 10k generated crystals), we aim for a clear improvement in:
+(i) screening hit-rate (metallicity, stability, and $\Tc$ thresholds), and 
+(ii) novelty (non-duplicates, not in training set),
+compared to the baseline GuidedMatDiffusion checkpoint at matched guidance settings.
+
+\section{Dataset}
+\subsection{Data sources and meaning}
+Following GuidedMatDiffusion, we use Alexandria for pretraining and \texttt{supccomb\_12} for superconductivity fine-tuning and evaluation. The released Alexandria subset contains crystal structures with at most 20 atoms per unit cell, with 1,857,222 structures for training and 229,545 for validation, and is used to learn a general structural prior over inorganic crystals.
+
+The fine-tuning dataset, \texttt{supccomb\_12}, is the authors' processed combined superconductivity dataset rather than a standalone public benchmark. It is built from the DS-A dataset of 7,217 dynamically stable metallic compounds with first-principles electron--phonon quantities \cite{cerqueira2023sampling} and 857 additional superconducting candidates identified by Gibson et al. using AI-accelerated screening \cite{gibson2025workflow}, yielding 7,183 labeled samples after filtering and an 8:1:1 train/validation/test split. Each sample is a periodic crystal structure paired with a superconductivity label derived from first-principles electron--phonon calculations.
+
+\subsection{Graph representation}
+Each crystal is represented as a homogeneous periodic atom graph, with atoms as nodes and CrystalNN neighbors under periodic boundary conditions as edges. Following the released GuidedMatDiffusion setup, we restrict to structures with at most 12 atoms per cell, matching the \texttt{supccomb\_12} configuration. This representation captures composition and local crystal geometry and is compatible with periodic equivariant models such as DiffCSP.
+
+\subsection{Exploratory data analysis}
+We will perform dataset analysis at both the structure level and graph level. See Table 1.
+
+\paragraph{Graph statistics.}
+Using the same CrystalNN preprocessing as GuidedMatDiffusion, we compute the number of nodes, number of undirected edges, graph density, average clustering coefficient, and node-degree statistics for each crystal graph, and report dataset-level means and standard deviations.
+
+\paragraph{Feature analysis.}
+We analyze atomic-number node attributes, CrystalNN edge connectivity, element frequency, and the number of unique elements per crystal. For the Allen--Dynes critical temperature estimate $T_c$, we report its mean, standard deviation, quartiles, and the fraction of samples above $5$ K and $10$ K. Since $T_c$ is continuous, imbalance is better interpreted as label skew.
+
+\subsection{Visualization}
+We visualize the dataset with a histogram of the Allen–Dynes critical temperature estimate $T_c$ to show the strongly right-skewed label distribution, together with a t-SNE projection of initial graph-level composition and structure features colored by $T_c$ to examine how superconductivity varies across feature space. Results are shown in Figure 1.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.96}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Total samples & 7,183 \\
+Split sizes (train / val / test) & 5,746 / 718 / 719 \\
+Node attributes & Atomic number; top-3 elements: $Z=\{22,41,40\}$ \\
+Edge attributes & CrystalNN connectivity + periodic image offsets \\
+Most common edge offsets & $(0,0,0)$, $(1,0,0)$, $(-1,0,0)$ \\
+Nodes per graph & $4.914 \pm 1.865$ \\
+Undirected edges per graph & $8.456 \pm 8.672$ \\
+Graph density & $0.774 \pm 0.193$ \\
+Avg. clustering coefficient & $0.445 \pm 0.464$ \\
+Mean node degree & $2.964 \pm 1.524$ \\
+Unique elements per graph & $2.903 \pm 0.585$ \\
+$T_c$ mean $\pm$ std & $3.596 \pm 5.215$ \\
+$T_c$ quartiles & $0.052$ / $0.993$ / $5.482$ \\
+Fraction with $T_c$ $> 5$ & $26.52\%$ \\
+Fraction with $T_c$ $> 10$ & $12.53\%$ \\
+Fraction with $T_c$ $> 20$ & $1.56\%$ \\
+\bottomrule
+\end{tabular}
+\caption{Compact EDA summary for the processed superconductivity dataset used in GuidedMatDiffusion (\texttt{supccomb\_12}). Graph metrics are computed on undirected simple graphs after collapsing duplicated directed CrystalNN edges.}
+\label{tab:supccomb12_eda}
+\end{table}
+
+
+\begin{figure}[t]
+  \centering
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{tcad_hist.png}
+  \end{minipage}\hfill
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{tsne_initial_features.png}
+  \end{minipage}
+  \caption{Exploratory data analysis for the processed superconductivity dataset used in GuidedMatDiffusion (\texttt{supccomb\_12}). Left: histogram of the Allen--Dynes critical temperature estimate $T_c$ (\texttt{tcad}), showing a strongly right skewed label distribution. Right: t-SNE of initial graph level composition and structure features, with points colored by \texttt{tcad}.}
+  \label{fig:eda}
+\end{figure}
+
+\section{Related works}
+
+\paragraph{DiffCSP: periodic equivariant crystal diffusion.}
+DiffCSP jointly diffuses lattice and fractional coordinates with a periodic equivariant denoiser, addressing drift and symmetry issues in crystal generation, and serves as a strong backbone for crystal structure prediction and conditional generation~\citep{jiao2023diffcsp}.
+
+\paragraph{Guided Material Diffusion for superconductors.}
+GuidedMatDiffusion pretrains DiffCSP on Alexandria and fine-tunes on $\sim$7k superconductors, then applies classifier-free guidance and a multi-stage screening pipeline (ML relaxations, metallicity, $\Ehull$, phonons, and refined $\Tc$ predictors)~\citep{prakash2025guidedmatdiffusion}.
+A key limitation is that most generated candidates fail screening, so yield is still low and validation remains heavy~\citep{prakash2025guidedmatdiffusion}.
+
+\paragraph{Surrogate models for screening.}
+MEGNet and M3GNet-family models provide fast approximations to formation energy / stability proxies and relaxation, enabling large-scale screening without DFT~\citep{chen2019megnet,chen2022m3gnet}.
+For superconductivity, BEE-NET provides a structure-based predictor that can be used for rapid $\Tc$ screening and workflow acceleration~\citep{gibson2025workflow,gibson2026beenet}.
+(As additional context on high-throughput superconductivity search and candidate generation, see~\citep{cerqueira2023sampling}.)
+
+\paragraph{Guidance and optimization for diffusion models.}
+Classifier-free guidance shifts samples toward a conditioning signal at inference time, but it can trade diversity for fidelity and may not optimize composite constraints; universal guidance and related techniques formalize how to guide diffusion models using auxiliary signals~\citep{bansal2023universalguidance}.
+
+\paragraph{Our project goal.}
+Unlike prior work that \emph{screens after generation}~\citep{prakash2025guidedmatdiffusion}, we treat the full screening pipeline as an \emph{explicit optimization objective} and update the generator to increase screening pass rate under a KL/regularization constraint, making inverse design more sample-efficient.
+
+\section{Proposed approaches}
+\subsection{Shared pipeline}
+We will implement an iterative loop:
+\[
+\texttt{rollout } x \sim p_{\theta}(\cdot \mid y) \;\;\rightarrow\;\; \texttt{score } R(x)\;\;\rightarrow\;\; \texttt{update } \theta.
+\]
+\paragraph{Composite reward.}
+We convert screening criteria into a shaped reward using \emph{fast ML surrogates}: (i) \textbf{Metallicity:} reward for low predicted band gap (e.g., $\widehat{E}_g \le 0$). (ii) \textbf{Thermodynamic stability:} reward for low predicted $\widehat{\Ehull}$ (e.g., $\widehat{\Ehull} < 200$ meV/atom). (iii) \textbf{Superconductivity:} reward for high predicted $\widehat{\Tc}$ (e.g., $\widehat{\Tc} > 5$ K).
+We will use a smooth reward such as
+\[
+R(x)=w_{\Tc}\,\sigma\!\Big(\frac{\widehat{\Tc}(x)-5}{\tau_{\Tc}}\Big)+
+w_{\Ehull}\,\sigma\!\Big(\frac{200-\widehat{\Ehull}(x)}{\tau_{\Ehull}}\Big)+
+w_{g}\,\sigma\!\Big(\frac{-\widehat{E}_g(x)}{\tau_g}\Big)
+- w_{\mathrm{dup}}\mathbf{1}\{\text{duplicate}\},
+\]
+with tunable weights and temperatures, plus penalties for invalid structures.
+
+\paragraph{Baselines within this pipeline.}
+(1) frozen generator + classifier-free guidance only,
+(2) inference-time ``best-of-$N$'' selection without parameter updates,
+(3) inference-time optimization (e.g., the repo's optimization script) as a non-RL comparator.
+
+\subsection{Approach 4.1 (Jeffrey Wei): Reward-weighted diffusion fine-tuning}
+\paragraph{Key idea.}
+Avoid high-variance policy gradients by using \textbf{reward-weighted denoising fine-tuning}.
+We sample a batch of candidates, compute rewards, and then fine-tune only the conditioning adapter parameters by minimizing a weighted diffusion loss:
+\[
+\min_{\theta}\; \mathbb{E}_{(x,\epsilon,t)}\Big[ \exp(\beta \tilde{R}(x))\cdot \|\epsilon - \epsilon_{\theta}(x_t, t, y)\|^2 \Big] + \lambda\,\mathrm{KL}(p_{\theta}\,\|\,p_{\theta_0}),
+\]
+where $\theta_0$ is the initial checkpoint and $\tilde{R}$ is normalized reward (rank or z-score).
+This resembles cross-entropy method / advantage-weighted updates and is typically more stable than PPO for diffusion.
+
+\paragraph{Main modification.}
+We will extend the GuidedMatDiffusion training loop to (i) log and reuse rollouts, (ii) compute reward weights from the screening surrogates, and (iii) update only the adapter (or LoRA) parameters to preserve the Alexandria prior.
+
+\paragraph{Research questions.}
+Does reward-weighted fine-tuning improve screening hit-rate more efficiently than stronger classifier-free guidance?
+We hypothesize that modest KL-regularized updates will improve hit-rate while maintaining diversity better than simply increasing guidance weight.
+
+\subsection{Approach 4.2 (Wenhe Zhang): Diffusion-trajectory PPO-style update}
+\paragraph{Key idea.}
+Treat the denoising process as a stochastic policy over diffusion trajectories.
+We will implement a PPO-style update on the adapter-conditioned denoiser by using the diffusion model's per-step Gaussian likelihood (or an equivalent score-based surrogate) to compute approximate log-probabilities of trajectories.
+We then optimize:
+\[
+\max_{\theta}\; \mathbb{E}\Big[\sum_t \log p_{\theta}(x_{t-1}\mid x_t,y)\,A(x)\Big] - \lambda\,\mathrm{KL}(\theta,\theta_{\mathrm{old}}),
+\]
+with an advantage $A(x)$ derived from the final composite reward $R(x)$ and a learned value baseline to reduce variance.
+
+\paragraph{Main modification.}
+We will add trajectory logging in sampling (store $(x_t)$ and model predictions), compute approximate log-prob ratios, and implement PPO clipping + value head for variance reduction.
+We will compare updating: (i) adapter-only, (ii) last $k$ message-passing layers, to study stability vs capacity.
+
+\paragraph{Research questions.}
+Does trajectory-level PPO produce larger gains than reward-weighted fine-tuning, or does it destabilize the generative prior?
+We hypothesize PPO can yield stronger reward optimization but is more sensitive to reward noise and surrogate mismatch.
+
+\section{Evaluation metrics and experiment setup}
+\subsection{Primary metrics}
+\begin{itemize}
+    \item \textbf{Screening hit-rate:} fraction of generated samples passing thresholds on $(\widehat{E}_g, \widehat{\Ehull}, \widehat{\Tc})$ at a fixed sampling budget.
+    \item \textbf{Yield at fixed compute:} number of passing candidates per GPU-hour (generator + surrogates).
+\end{itemize}
+
+\subsection{Secondary metrics}
+\begin{itemize}
+    \item \textbf{Validity:} parsable structures; physically reasonable lattice parameters; no NaNs during sampling.
+    \item \textbf{Novelty:} deduplicate against training set and within generated set (structure matcher + composition match).
+\end{itemize}
+
+\subsection{Baselines}
+\begin{itemize}
+    \item \textbf{Baseline generator:} Alexandria-pretrained DiffCSP checkpoint fine-tuned on \texttt{supccomb\_12} (GuidedMatDiffusion).
+    \item \textbf{Guidance-only:} classifier-free guidance with tuned guidance weight.
+    \item \textbf{Best-of-$N$:} sample $N$ candidates and pick top-$k$ by reward without updating parameters.
+    \item \textbf{Inference-time optimization:} use the repository's optimization-style routine as a non-RL comparator.
+\end{itemize}
+
+\subsection{Validation strategy}
+We will use the provided train/val/test split for \texttt{supccomb\_12}.
+All RL/optimization updates use \textbf{only training rollouts}.
+We will report metrics on a fixed held-out generation evaluation protocol (same random seeds, same sampling budget, same guidance weight grid).
+
+\section{Timeline and responsibility matrix}
+\begin{table}[h]
+\centering
+\caption{Milestones and responsibilities (6--7 week plan).}
+\label{tab:timeline}
+\begin{tabular}{@{}p{0.18\linewidth}p{0.50\linewidth}p{0.24\linewidth}@{}}
+\toprule
+\textbf{Week} & \textbf{Milestone} & \textbf{Owner(s)} \\
+\midrule
+1 & Reproduce baseline sampling + screening pipeline; run small-scale generation; verify CIF validity + dedup. & Both \\
+2 & EDA + visualizations; finalize reward definition and thresholds; implement caching. & Both \\
+3 & Implement Approach 4.1 reward-weighted fine-tuning; ablate KL strength and reward normalization. & Jeffrey \\
+4 & Implement Approach 4.2 PPO-style trajectory update; add trajectory logging + value baseline. & Wenhe \\
+5 & Large-scale experiments on matched sampling budgets; baseline comparisons; diversity/novelty metrics. & Both \\
+6 & Stress tests: surrogate mismatch, reward hacking checks, guidance-weight interactions; finalize plots. & Both \\
+7 & Writing + polishing; produce final report with clear ablations and discussion of limitations. & Both \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Risks and mitigations.}
+(1) \textbf{Surrogate mismatch}: reward may be gamed; mitigate with conservative reward shaping, novelty penalties, and occasional expensive validation on a small subset.
+(2) \textbf{RL instability}: PPO may collapse; mitigate by adapter-only updates, KL constraints, and fallback to reward-weighted fine-tuning.
+(3) \textbf{Compute}: diffusion sampling is costly; mitigate with small rollouts per iteration and batched surrogate inference + caching.
+
+\begin{thebibliography}{10}
+
+\bibitem{jiao2023diffcsp}
+Rui Jiao, Wenbing Huang, Peijia Lin, Jiaqi Han, Pin Chen, Yutong Lu, and Yang Liu.
+\newblock Crystal Structure Prediction by Joint Equivariant Diffusion.
+\newblock In \emph{NeurIPS}, 2023. (arXiv:2309.04475)
+
+\bibitem{prakash2025guidedmatdiffusion}
+Pawan Prakash et~al.
+\newblock Guided Diffusion for the Discovery of New Superconductors.
+\newblock \emph{arXiv preprint arXiv:2509.25186}, 2025.
+
+\bibitem{chen2019megnet}
+Chi Chen, Weike Ye, Yunxing Zuo, Chen Zheng, and Shyue Ping Ong.
+\newblock Graph Networks as a Universal Machine Learning Framework for Molecules and Crystals.
+\newblock \emph{Chemistry of Materials}, 2019. (arXiv:1812.05055)
+
+\bibitem{chen2022m3gnet}
+Chi Chen and Shyue Ping Ong.
+\newblock A Universal Graph Deep Learning Interatomic Potential for the Periodic Table.
+\newblock \emph{arXiv preprint arXiv:2202.02450}, 2022.
+
+\bibitem{bansal2023universalguidance}
+Arpit Bansal et~al.
+\newblock Universal Guidance for Diffusion Models.
+\newblock \emph{arXiv preprint arXiv:2302.07121}, 2023.
+
+\bibitem{gibson2026beenet}
+Jason~B. Gibson et~al.
+\newblock Developing a Complete AI-Accelerated Workflow for Superconductor Discovery (BEE-NET).
+\newblock 2025--2026 preprint / npj Computational Materials reference.
+
+\bibitem{cerqueira2023sampling}
+T.~F.~T. Cerqueira, A.~Sanna, and M.~A.~L. Marques.
+\newblock Sampling the materials space for conventional superconducting compounds.
+\newblock \emph{Advanced Materials}, 36, 2023.
+
+\bibitem{gibson2025workflow}
+J.~B. Gibson, A.~C. Hire, P.~M. Dee, B.~Geisler, J.~S. Kim, Z.~Li, J.~J. Hamlin, G.~R. Stewart, P.~J. Hirschfeld, and R.~G. Hennig.
+\newblock Developing a Complete AI-Accelerated Workflow for Superconductor Discovery.
+\newblock \emph{arXiv preprint arXiv:2503.20005}, 2025.
+
+\end{thebibliography}
+
+\end{document}
