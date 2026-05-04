@@ -125,6 +125,7 @@ For phase C, train proxy rewards from offline labels, then enable `grpo.rewards.
 - [DiffCSP](https://github.com/jiaor17/DiffCSP) (Jiao et al., NeurIPS 2023) — equivariant graph diffusion backbone
 - [Diffusion-DPO](https://arxiv.org/abs/2311.12908) (Wallace et al., CVPR 2024) — preference-optimization formulation
 - [DeepSeekMath](https://arxiv.org/abs/2402.03300) (Shao et al., 2024) — Group Relative Policy Optimization algorithmic reference
+- [DeepSeek-R1](https://arxiv.org/abs/2501.12948) (DeepSeek-AI, 2025) — large-scale GRPO-style reinforcement learning for reasoning models
 - [Proximal Policy Optimization](https://arxiv.org/abs/1707.06347) (Schulman et al., 2017) — policy-gradient foundation for clipped RL objectives
 - [CHGNet](https://github.com/CederGroupHub/chgnet) (Deng et al., 2023) — universal pretrained energy model used for stability scoring
 - [BEE-NET superconductor discovery workflow](https://www.nature.com/articles/s41524-026-01964-8) (Gibson et al., 2026) — Eliashberg spectral-function and `T_c` reward model
