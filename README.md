@@ -78,9 +78,9 @@ To regenerate the headline figures and LaTeX table from the committed scores: `p
 
 ## Project 2: GRPO
 
-Online policy optimization with a composite BEE-NET and MEGNet reward.
+Online policy optimization with grouped rollouts, BEE-NET, MEGNet, M3GNet, and optional phase-C proxy rewards.
 
-TODO: add training and evaluation commands here.
+The full RL post-training workflow is documented in [README_GRPO.md](README_GRPO.md), including environment setup, reward benchmarking, GRPO smoke tests, phase A/B/C training, and publishing guidance for teammates.
 
 ---
 

@@ -317,7 +317,8 @@ class CSPNet(nn.Module):
         node_features = self.atom_latent_emb(node_features)
 
         # Getting property embedding
-        property_emb = self.property_embedding(property) # property is on proper device
+        property_emb = self.property_embedding(property).to(dtype=node_features.dtype)
+        property_indicator = property_indicator.to(dtype=node_features.dtype)
 
         for i in range(0, self.num_layers):
             node_features = self.adapters[i](node_features, property_emb, property_indicator, num_atoms)
@@ -342,4 +343,3 @@ class CSPNet(nn.Module):
             return lattice_out, coord_out, type_out
 
         return lattice_out, coord_out
-

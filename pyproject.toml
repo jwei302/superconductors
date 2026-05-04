@@ -27,4 +27,4 @@ description = "Implemetation guided diffusion using property embedding and CFG"
 readme = "README.md"
 
 [tool.setuptools.packages.find]
-include = ["guidediffusion*"]
+include = ["guidediffusion*", "diffcsp*"]

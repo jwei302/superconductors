@@ -7,6 +7,7 @@ from scipy.spatial.distance import pdist
 from scipy.spatial.distance import cdist
 from hydra.experimental import compose
 from hydra import initialize_config_dir
+from omegaconf import OmegaConf
 from pathlib import Path
 
 import smact
@@ -87,54 +88,57 @@ def get_model_path(eval_model_name):
 
 
 def load_config(model_path):
+    model_path = Path(model_path).resolve()
+    hparams = model_path / 'hparams.yaml'
+    if hparams.exists():
+        return OmegaConf.load(hparams)
     with initialize_config_dir(str(model_path)):
-        cfg = compose(config_name='hparams')
-    return cfg
+        return compose(config_name='hparams')
 
 
 def load_model(model_path, load_data=False, testing=True):
-    with initialize_config_dir(str(model_path)):
-        cfg = compose(config_name='hparams')
-        model = hydra.utils.instantiate(
-            cfg.model,
-            optim=cfg.optim,
-            data=cfg.data,
-            logging=cfg.logging,
-            _recursive_=False,
-        )
-        ckpts = list(model_path.glob('*.ckpt'))
-        if len(ckpts) > 0:
-            ckpt = None
-            for ck in ckpts:
-                if 'last' in ck.parts[-1]:
-                    ckpt = str(ck)
-            if ckpt is None:
-                ckpt_epochs = np.array(
-                    [int(ckpt.parts[-1].split('-')[0].split('=')[1]) for ckpt in ckpts if 'last' not in ckpt.parts[-1]])
-                ckpt = str(ckpts[ckpt_epochs.argsort()[-1]])
-        hparams = os.path.join(model_path, "hparams.yaml")
-        #model = model.load_from_checkpoint(ckpt, hparams_file=hparams, strict=False)
-        model = type(model).load_from_checkpoint(ckpt, hparams_file=hparams, strict=False)
-        try:
-            model.lattice_scaler = torch.load(model_path / 'lattice_scaler.pt')
-            model.scaler = torch.load(model_path / 'prop_scaler.pt')
-        except:
-            pass
+    model_path = Path(model_path).resolve()
+    cfg = load_config(model_path)
+    model = hydra.utils.instantiate(
+        cfg.model,
+        optim=cfg.optim,
+        data=cfg.data,
+        logging=cfg.logging,
+        _recursive_=False,
+    )
+    ckpts = list(model_path.glob('*.ckpt'))
+    if len(ckpts) > 0:
+        ckpt = None
+        for ck in ckpts:
+            if 'last' in ck.parts[-1]:
+                ckpt = str(ck)
+        if ckpt is None:
+            ckpt_epochs = np.array(
+                [int(ckpt.parts[-1].split('-')[0].split('=')[1]) for ckpt in ckpts if 'last' not in ckpt.parts[-1]])
+            ckpt = str(ckpts[ckpt_epochs.argsort()[-1]])
+    hparams = os.path.join(model_path, "hparams.yaml")
+    #model = model.load_from_checkpoint(ckpt, hparams_file=hparams, strict=False)
+    model = type(model).load_from_checkpoint(ckpt, hparams_file=hparams, strict=False)
+    try:
+        model.lattice_scaler = torch.load(model_path / 'lattice_scaler.pt')
+        model.scaler = torch.load(model_path / 'prop_scaler.pt')
+    except:
+        pass
 
-        if load_data:
-            datamodule = hydra.utils.instantiate(
-                cfg.data.datamodule, _recursive_=False, scaler_path=model_path
-            )
-            if testing:
-                datamodule.setup('test')
-                test_loader = datamodule.test_dataloader()[0]
-            else:
-                datamodule.setup()
-                train_loader = datamodule.train_dataloader(shuffle=False)
-                val_loader = datamodule.val_dataloader()[0]
-                test_loader = (train_loader, val_loader)
+    if load_data:
+        datamodule = hydra.utils.instantiate(
+            cfg.data.datamodule, _recursive_=False, scaler_path=model_path
+        )
+        if testing:
+            datamodule.setup('test')
+            test_loader = datamodule.test_dataloader()[0]
         else:
-            test_loader = None
+            datamodule.setup()
+            train_loader = datamodule.train_dataloader(shuffle=False)
+            val_loader = datamodule.val_dataloader()[0]
+            test_loader = (train_loader, val_loader)
+    else:
+        test_loader = None
 
     return model, test_loader, cfg
 

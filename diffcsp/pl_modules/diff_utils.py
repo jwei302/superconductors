@@ -26,17 +26,33 @@ def sigmoid_beta_schedule(timesteps, beta_start, beta_end):
     return torch.sigmoid(betas) * (beta_end - beta_start) + beta_start
 
 
-def p_wrapped_normal(x, sigma, N=10, T=1.0):
-    p_ = 0
+def _safe_sigma_like(x, sigma, eps=1e-12):
+    if not torch.is_tensor(sigma):
+        sigma = torch.tensor(sigma, device=x.device, dtype=x.dtype)
+    return torch.clamp(sigma.to(device=x.device, dtype=x.dtype), min=eps)
+
+
+def p_wrapped_normal(x, sigma, N=10, T=1.0, eps=1e-12):
+    sigma = _safe_sigma_like(x, sigma, eps=eps)
+    p_ = torch.zeros_like(x)
     for i in range(-N, N + 1):
         p_ += torch.exp(-(x + T * i) ** 2 / 2 / sigma ** 2)
     return p_
 
-def d_log_p_wrapped_normal(x, sigma, N=10, T=1.0):
-    p_ = 0
+def log_p_wrapped_normal(x, sigma, N=10, T=1.0, eps=1e-12):
+    return torch.log(p_wrapped_normal(x, sigma, N=N, T=T, eps=eps) + eps)
+
+def d_log_p_wrapped_normal(x, sigma, N=10, T=1.0, eps=1e-12):
+    sigma = _safe_sigma_like(x, sigma, eps=eps)
+    p_ = torch.zeros_like(x)
     for i in range(-N, N + 1):
         p_ += (x + T * i) / sigma ** 2 * torch.exp(-(x + T * i) ** 2 / 2 / sigma ** 2)
-    return p_ / p_wrapped_normal(x, sigma, N, T)
+    return p_ / torch.clamp(p_wrapped_normal(x, sigma, N, T, eps=eps), min=eps)
+
+def gaussian_log_prob(sample, mean, std, eps=1e-12):
+    std = torch.clamp(std, min=eps)
+    var = std ** 2
+    return -0.5 * (((sample - mean) ** 2) / var + 2.0 * torch.log(std) + math.log(2.0 * math.pi))
 
 def sigma_norm(sigma, T=1.0, sn = 10000):
     sigmas = sigma[None, :].repeat(sn, 1)
@@ -110,5 +126,3 @@ class SigmaScheduler(nn.Module):
     def uniform_sample_t(self, batch_size, device):
         ts = np.random.choice(np.arange(1, self.timesteps+1), batch_size)
         return torch.from_numpy(ts).to(device)
-
-

@@ -2,7 +2,10 @@ import os
 from pathlib import Path
 from typing import Optional
 
-import dotenv
+try:
+    import dotenv
+except ModuleNotFoundError:  # pragma: no cover - optional runtime dependency
+    dotenv = None
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
@@ -44,7 +47,8 @@ def load_envs(env_file: Optional[str] = None) -> None:
     :param env_file: the file that defines the environment variables to use. If None
                      it searches for a `.env` file in the project.
     """
-    dotenv.load_dotenv(dotenv_path=env_file, override=True)
+    if dotenv is not None:
+        dotenv.load_dotenv(dotenv_path=env_file, override=True)
 
 
 STATS_KEY: str = "stats"
@@ -89,9 +93,9 @@ def log_hyperparameters(
 load_envs()
 
 # Set the cwd to the project root
-PROJECT_ROOT: Path = Path(get_env("PROJECT_ROOT"))
-assert (
-    PROJECT_ROOT.exists()
-), "You must configure the PROJECT_ROOT environment variable in a .env file!"
+PROJECT_ROOT: Path = Path(
+    get_env("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))
+)
+assert PROJECT_ROOT.exists(), f"PROJECT_ROOT does not exist: {PROJECT_ROOT}"
 
 os.chdir(PROJECT_ROOT)

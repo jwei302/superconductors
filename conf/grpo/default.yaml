@@ -1,0 +1,65 @@
+seed: 42
+
+curriculum:
+  upper_fraction: 0.7
+
+sampling:
+  guide_w: 1.0
+  num_groups_per_update: 4
+  num_branches: 8
+  prefix_t: 300
+  reward_interval: 25
+  step_lr: 5.0e-6
+
+schedule:
+  max_updates: 10000
+  phase_a_updates: 2000
+  phase_b_updates: 5000
+
+loss:
+  clip_eps: 0.02
+  kl_beta: 0.05
+  max_grad_norm: 1.0
+  bee_weight: 1.0
+  meg_weight: 1.0
+  m3g_weight: 1.0
+  proxy_weight: 1.0
+  norm_eps: 1.0e-6
+  adv_clip_max: 5.0
+
+checkpoint:
+  interval: 250
+
+eval:
+  interval: 250
+  num_prompts: 512
+  seed: 123
+  guide_w_values: [0.5, 1.0, 2.0]
+  compare_reference: true
+  reference_guide_w_values: null
+  default_within_fraction: 0.02
+  run_m3g: false
+  m3g_subset_size: 64
+
+rewards:
+  bee:
+    checkpoints_dir: ${oc.env:PROJECT_ROOT}/checkpoints/bee_net/CSO
+    ensemble_size: 4
+    start_index: 0
+    device: cpu
+  megnet:
+    formation_model: Eform_MP_2019
+    bandgap_model: Bandgap_MP_2018
+    metal_threshold: 0.05
+  m3gnet:
+    enabled: true
+    top_fraction: 0.25
+    force_weight: 0.4
+    stress_weight: 0.2
+    deltae_weight: 0.2
+    rmsd_weight: 0.2
+    relax_steps: 5
+    relax_fmax: 0.05
+  proxies:
+    enabled: false
+    entries: []

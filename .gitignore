@@ -192,3 +192,11 @@ CLAUDE.md
 
 # Report drafts (not tracked in this repo)
 report/
+
+# Local research artifacts
+checkpoints/
+data/
+hf_models/
+out/
+*.pdf
+visualization.ipynb

@@ -1,0 +1,34 @@
+expname: rl_grpo
+
+core:
+  version: 0.0.1
+  tags:
+    - ${now:%Y-%m-%d}
+
+hydra:
+  run:
+    dir: ${oc.env:HYDRA_JOBS}/singlerun/${now:%Y-%m-%d}/${expname}/
+
+  sweep:
+    dir: ${oc.env:HYDRA_JOBS}/multirun/${now:%Y-%m-%d}/${expname}/
+    subdir: ${hydra.job.num}_${hydra.job.id}
+
+  job:
+    env_set:
+      WANDB_START_METHOD: thread
+      WANDB_DIR: ${oc.env:WABDB_DIR}
+
+defaults:
+  - data: supccomb_12
+  - logging: default
+  - model: diffusion_w_type
+  - optim: rl
+  - grpo: default
+  - _self_
+
+paths:
+  policy_checkpoint: ${oc.env:PROJECT_ROOT}/hf_models/superconductor_generator
+  reference_checkpoint: null
+
+data:
+  name_for_prior: supccomb_12
