@@ -274,7 +274,6 @@ def fig_compute_matched():
         ("SFT @ N=2000",   baseline,           COLOR["baseline"]),
         ("SFT @ 4N=8000",  sft8k,              "#666666"),
         ("DPO β=1 @ 2000", pools["1"],         COLOR["1"]),
-        ("DPO β=0.1 @ 2000\n(reward-hacked)", pools["0.1"], COLOR["0.1"]),
     ]
 
     # Left: hit-rate at T_25 with absolute hit count overlay

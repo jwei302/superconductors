@@ -189,3 +189,6 @@ dpo_artifacts/test_pairs_v0.pt
 # Claude Code workspace
 CLAUDE.md
 .claude/
+
+# Report drafts (not tracked in this repo)
+report/
