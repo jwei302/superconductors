@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crystal Diffusion — denoising scrubber</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+</head>
+<body>
+<header>
+  <h1>Watching a superconductor crystallize out of noise</h1>
+  <p class="sub">
+    A property-conditioned <a href="https://github.com/jiaor17/DiffCSP" target="_blank">DiffCSP</a>
+    diffusion model run in reverse. Drag the slider from <b>pure noise</b> (left) to the
+    <b>final crystal</b> (right) and watch atom positions, the unit cell, and the
+    <em>element identity of every atom</em> denoise simultaneously.
+  </p>
+</header>
+
+<main>
+  <section id="stage">
+    <div id="viewer"></div>
+    <div id="overlay">
+      <div class="badge" id="formula">—</div>
+      <div class="badge muted" id="natoms">—</div>
+    </div>
+  </section>
+
+  <section id="controls">
+    <div class="row">
+      <button id="play" title="Play / pause">▶</button>
+      <input id="slider" type="range" min="0" max="1" value="0" step="1" />
+      <span id="stepLabel" class="mono">step —</span>
+    </div>
+
+    <div class="row meta">
+      <label>crystal
+        <select id="crystalSel"></select>
+      </label>
+      <label>speed
+        <select id="speedSel">
+          <option value="120">slow</option>
+          <option value="60" selected>normal</option>
+          <option value="20">fast</option>
+        </select>
+      </label>
+      <span class="phase" id="phase">noise</span>
+    </div>
+
+    <div class="row infobar mono">
+      <span>target T<sub>c</sub>: <b id="tc">—</b></span>
+      <span>guide&nbsp;w: <b id="gw">—</b></span>
+      <span>diffusion steps: <b id="nsteps">—</b></span>
+    </div>
+  </section>
+
+  <section id="legend">
+    <h3>elements in this structure</h3>
+    <div id="legendItems" class="legend-items"></div>
+    <p class="note">
+      At high noise the atom-type vector is random Gaussian, so its arg-max flickers
+      across the periodic table; it locks onto the final species only as the diffusion
+      collapses toward the crystal.
+    </p>
+  </section>
+</main>
+
+<footer>
+  <span>Frames precomputed on CPU via
+    <code>viz/export_trajectory.py</code>; rendered client-side with 3Dmol.js.</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

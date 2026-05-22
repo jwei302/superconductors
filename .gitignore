@@ -196,6 +196,9 @@ report/
 # Local research artifacts
 checkpoints/
 data/
+# but DO track the web app's precomputed diffusion trajectory data
+!docs/data/
+!docs/data/**
 hf_models/
 out/
 *.pdf
