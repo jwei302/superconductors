@@ -1,0 +1,6 @@
+[submodule "external/BEE-NET"]
+	path = external/BEE-NET
+	url = https://github.com/henniggroup/BEE-NET.git
+[submodule "external/megnet"]
+	path = external/megnet
+	url = https://github.com/materialyzeai/megnet.git
