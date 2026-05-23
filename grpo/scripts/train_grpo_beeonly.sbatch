@@ -29,7 +29,7 @@ python grpo/run_grpo.py \
     grpo.curriculum.fixed_target=${FIXED_TARGET:-null} \
     grpo.loss.kl_beta=${KL:-0.05} \
     grpo.loss.clip_eps=${CLIP:-0.02} \
-    grpo.sampling.num_groups_per_update=${GROUPS:-2} \
+    grpo.sampling.num_groups_per_update=${NGROUPS:-2} \
     grpo.sampling.num_branches=${BRANCHES:-6} \
     grpo.schedule.max_updates=${MAXUP:-10000} \
     grpo.checkpoint.interval=${CKPT_INT:-25} \
