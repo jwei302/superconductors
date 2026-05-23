@@ -5,6 +5,18 @@
 const SVGNS = "http://www.w3.org/2000/svg";
 const $g = (id) => document.getElementById(id);
 
+function movingAverage(ys, w) {
+  const out = [];
+  for (let i = 0; i < ys.length; i++) {
+    let s = 0, c = 0;
+    for (let j = Math.max(0, i - w + 1); j <= i; j++) {
+      if (ys[j] != null && ys[j] === ys[j]) { s += ys[j]; c++; }
+    }
+    out.push(c ? s / c : null);
+  }
+  return out;
+}
+
 /* ---- illustrative GRPO group (shows the "group relative" idea) ---- */
 function renderGroup() {
   const target = 10.0;
@@ -95,12 +107,20 @@ function lineChart(elId, xs, ys, opts) {
     t.textContent = `target ${opts.target} K`; svg.appendChild(t);
   }
 
-  // line path
-  const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
-  const path = document.createElementNS(SVGNS, "path");
-  path.setAttribute("d", d); path.setAttribute("fill", "none");
-  path.setAttribute("stroke", opts.color || "#2563eb"); path.setAttribute("stroke-width", "1.8");
-  svg.appendChild(path);
+  // line(s): raw (light) + optional moving-average overlay (bold)
+  const col = opts.color || "#2563eb";
+  function drawSeries(ys2, width, opacity) {
+    const p2 = xs.map((x, i) => [x, ys2[i]]).filter((p) => p[1] != null && p[1] === p[1]);
+    if (p2.length < 2) return;
+    const dd = p2.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
+    const pa = document.createElementNS(SVGNS, "path");
+    pa.setAttribute("d", dd); pa.setAttribute("fill", "none");
+    pa.setAttribute("stroke", col); pa.setAttribute("stroke-width", width);
+    pa.setAttribute("stroke-opacity", opacity);
+    svg.appendChild(pa);
+  }
+  drawSeries(ys, 1.2, opts.ma ? 0.32 : 1);
+  if (opts.ma) drawSeries(opts.ma, 2.3, 1);
   el.appendChild(svg);
 }
 
@@ -111,8 +131,8 @@ function renderCharts(d) {
     lineChart("rewardChart", [], []); lineChart("tcadChart", [], []);
     return;
   }
-  lineChart("rewardChart", d.updates, d.reward, { color: "#2563eb" });
-  lineChart("tcadChart", d.updates, d.tcad, { color: "#16a34a", target: d.target });
+  lineChart("rewardChart", d.updates, d.reward, { color: "#2563eb", ma: movingAverage(d.reward, 6) });
+  lineChart("tcadChart", d.updates, d.tcad, { color: "#16a34a", target: d.target, ma: movingAverage(d.tcad, 6) });
   if (status) {
     const lastTc = [...(d.tcad || [])].reverse().find((v) => v != null && v === v);
     status.innerHTML = `${d.n} updates logged` +
