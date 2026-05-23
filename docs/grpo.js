@@ -166,11 +166,65 @@ function renderCharts(d) {
   }
 }
 
+/* ---- gallery of real generated crystals (GRPO trains the generator) ---- */
+function cellEdgesViewer(v, L) {
+  const c = [];
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) for (let k = 0; k < 2; k++)
+    c.push({ x: i * L[0][0] + j * L[1][0] + k * L[2][0], y: i * L[0][1] + j * L[1][1] + k * L[2][1], z: i * L[0][2] + j * L[1][2] + k * L[2][2], b: [i, j, k] });
+  for (let a = 0; a < c.length; a++) for (let b = a + 1; b < c.length; b++) {
+    const dd = (c[a].b[0] !== c[b].b[0]) + (c[a].b[1] !== c[b].b[1]) + (c[a].b[2] !== c[b].b[2]);
+    if (dd === 1) v.addCylinder({ start: { x: c[a].x, y: c[a].y, z: c[a].z }, end: { x: c[b].x, y: c[b].y, z: c[b].z }, radius: 0.035, color: "#9aa3ad" });
+  }
+}
+
+function renderMiniCrystal(id, c) {
+  const div = $g(id);
+  if (!div || !window.$3Dmol) return;
+  const v = $3Dmol.createViewer(div, { backgroundColor: "white" });
+  const lines = [String(c.elems.length), ""];
+  for (let i = 0; i < c.elems.length; i++) { const p = c.xyz[i]; lines.push(`${c.elems[i]} ${p[0]} ${p[1]} ${p[2]}`); }
+  v.addModel(lines.join("\n"), "xyz");
+  v.setStyle({}, { sphere: { scale: 0.3, colorscheme: "Jmol" } });
+  cellEdgesViewer(v, c.lattice);
+  v.zoomTo(); v.zoom(0.85); v.render();
+}
+
+function renderSamples(d) {
+  const wrap = $g("grpoSamples");
+  if (!wrap) return;
+  if (!d || (!d.baseline && !d.grpo)) {
+    wrap.innerHTML = `<div class="chart-empty">generating sample crystals…</div>`;
+    return;
+  }
+  const grp = d.grpo || d.baseline;
+  const tgt = d.target_tc != null ? `${d.target_tc.toFixed(1)} K` : "";
+  const label = d.grpo ? `GRPO-tuned generator (update ${d.grpo.update})` : "SFT baseline generator";
+  let html = "";
+  if (d.baseline && d.grpo) {
+    html += `<p class="samples-stat mono">SFT baseline group mean T<sub>c</sub> = ${d.baseline.mean_tcad} K &nbsp;&rarr;&nbsp; GRPO group mean = ${d.grpo.mean_tcad} K &nbsp;·&nbsp; target ${tgt}</p>`;
+  }
+  html += `<div class="samples-label">${label} — one group at target T<sub>c</sub> ${tgt} (group mean ${grp.mean_tcad} K). Green beats the group mean (reinforced), red is below (suppressed).</div>`;
+  html += `<div class="samples-grid">`;
+  const show = grp.crystals.slice(0, 6);
+  show.forEach((c, i) => {
+    const cls = c.adv == null ? "" : (c.adv >= 0 ? "up" : "down");
+    const tc = c.tcad != null ? `${c.tcad} K` : "invalid";
+    const adv = c.adv != null ? ` (${c.adv >= 0 ? "+" : ""}${c.adv})` : "";
+    html += `<div class="sample-card"><div class="mini-viewer" id="mv${i}"></div>` +
+      `<div class="sample-cap"><b>${c.formula}</b><span class="tc ${cls}">${tc}${adv}</span></div></div>`;
+  });
+  html += `</div>`;
+  wrap.innerHTML = html;
+  show.forEach((c, i) => renderMiniCrystal(`mv${i}`, c));
+}
+
 function initGrpo() {
   renderGroup();
   const load = () => fetch("data/grpo_progress.json", { cache: "no-store" })
     .then((r) => r.json()).then(renderCharts).catch(() => renderCharts(null));
   load();
+  fetch("data/grpo_samples.json", { cache: "no-store" })
+    .then((r) => r.json()).then(renderSamples).catch(() => renderSamples(null));
   window.addEventListener("resize", load);
 }
 

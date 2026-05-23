@@ -196,3 +196,20 @@ select {
   height: 200px; color: var(--muted); font-size: 0.9rem;
 }
 .grpo-status { margin-top: 16px; color: var(--muted); font-size: 0.85rem; }
+
+/* GRPO sample-crystal gallery */
+.samples-stat { color: var(--fg); font-size: 0.88rem; margin: 0 0 12px; }
+.samples-stat b { color: var(--fg); }
+.samples-label { color: var(--muted); font-size: 0.85rem; margin: 0 0 12px; }
+.samples-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;
+}
+.sample-card { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.mini-viewer { position: relative; width: 100%; height: 140px; background: #fff; }
+.sample-cap {
+  display: flex; flex-direction: column; gap: 1px; align-items: center;
+  padding: 6px 4px 8px; border-top: 1px solid var(--line); font-size: 0.85rem;
+}
+.sample-cap .tc { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
+.sample-cap .tc.up { color: #15803d; }
+.sample-cap .tc.down { color: #b91c1c; }
