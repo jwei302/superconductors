@@ -510,7 +510,19 @@ class M3GNetRewardModel:
     ) -> None:
         matgl = _require("matgl")
         ext_ase = _require("matgl.ext.ase")
-        self.potential = matgl.load_model("M3GNet-MP-2021.2.8-PES")
+        import torch as _torch
+        try:
+            matgl.set_default_dtype("float32")
+        except Exception:
+            pass
+        self.potential = matgl.load_model("M3GNet-PES-MatPES-PBE-2025.2")
+        # matgl/MatPES can flip torch's global default dtype to float64, which then
+        # breaks float32 models (e.g. CHGNet) scored afterwards. Pin everything to float32.
+        _torch.set_default_dtype(_torch.float32)
+        try:
+            self.potential = self.potential.to(_torch.float32)
+        except Exception:
+            pass
         self.PESCalculator = ext_ase.PESCalculator
         self.Relaxer = ext_ase.Relaxer
         self.relaxer = self.Relaxer(potential=self.potential)
