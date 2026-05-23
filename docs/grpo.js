@@ -107,20 +107,23 @@ function lineChart(elId, series, opts) {
     t.textContent = `target ${(+opts.target).toFixed(1)} K`; svg.appendChild(t);
   }
 
-  function path(xy, color, width, opacity) {
+  function path(xy, color, width, opacity, dash) {
     if (xy.length < 2) return;
     const dd = xy.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
     const pa = document.createElementNS(SVGNS, "path");
     pa.setAttribute("d", dd); pa.setAttribute("fill", "none");
     pa.setAttribute("stroke", color); pa.setAttribute("stroke-width", width); pa.setAttribute("stroke-opacity", opacity);
+    if (dash) pa.setAttribute("stroke-dasharray", dash);
     svg.appendChild(pa);
   }
   series.forEach((s) => {
     const raw = s.x.map((x, i) => [x, s.y[i]]).filter((p) => p[1] != null && p[1] === p[1]);
-    path(raw, s.color, 1.2, s.ma ? 0.3 : 1);
     if (s.ma) {
+      path(raw, s.color, 1.2, 0.3);
       const ma = movingAverage(s.y, 6);
       path(s.x.map((x, i) => [x, ma[i]]).filter((p) => p[1] != null && p[1] === p[1]), s.color, 2.3, 1);
+    } else {
+      path(raw, s.color, s.width || 1.6, s.opacity != null ? s.opacity : 1, s.dash);
     }
   });
 
@@ -142,27 +145,23 @@ function lineChart(elId, series, opts) {
 
 function renderCharts(d) {
   const status = $g("grpoStatus");
-  let runs = (d && d.runs) ? d.runs
-    : (d && d.updates ? [{ name: "run", key: "run", updates: d.updates, reward: d.reward, tcad: d.tcad, target: d.target, n: d.n }] : []);
-  runs = runs.filter((r) => r && (r.n || 0) > 0);
+  const runs = (d && d.runs) ? d.runs.filter((r) => r && (r.n || 0) > 0) : [];
   if (!runs.length) {
     if (status) status.textContent = "GRPO run not started yet — charts will populate once training begins.";
     lineChart("rewardChart", []); lineChart("tcadChart", []);
     return;
   }
-  const mk = (yk) => runs.map((r, i) => ({
-    x: r.updates, y: r[yk], ma: true,
-    color: RUN_COLORS[r.key] || PALETTE[i % PALETTE.length],
-    label: r.name,
-  }));
-  lineChart("rewardChart", mk("reward"), {});
-  const tgt = runs.map((r) => r.target).find((t) => t != null);
-  lineChart("tcadChart", mk("tcad"), { target: tgt });
+  const run = runs.find((r) => r.key === d.best) || runs[0];   // best-performing run only
+  const color = RUN_COLORS[run.key] || PALETTE[0];
+  lineChart("rewardChart", [{ x: run.updates, y: run.reward, color, label: run.name, ma: true }], {});
+  lineChart("tcadChart", [
+    { x: run.updates, y: run.tcad, color: "#16a34a", label: "mean predicted Tc", ma: true },
+    { x: run.updates, y: run.targets, color: "#e0a64a", label: "curriculum target", dash: "4 3", opacity: 0.7, width: 1.4 },
+  ], {});
   if (status) {
-    status.innerHTML = runs.map((r) => {
-      const last = [...(r.tcad || [])].reverse().find((v) => v != null && v === v);
-      return `<b>${r.name}</b>: ${r.n} updates` + (last != null ? `, latest mean T<sub>c</sub> ≈ ${last.toFixed(1)} K` : "");
-    }).join(" &nbsp;·&nbsp; ");
+    const lastTc = [...(run.tcad || [])].reverse().find((v) => v != null && v === v);
+    status.innerHTML = `Best run: <b>${run.name}</b> · ${run.n} updates` +
+      (lastTc != null ? ` · latest mean predicted T<sub>c</sub> ≈ ${lastTc.toFixed(1)} K` : "");
   }
 }
 
@@ -187,6 +186,7 @@ function renderMiniCrystal(id, c) {
   v.setStyle({}, { sphere: { scale: 0.3, colorscheme: "Jmol" } });
   cellEdgesViewer(v, c.lattice);
   v.zoomTo(); v.zoom(0.85); v.render();
+  try { v.spin("y", 0.5); } catch (e) { /* spin optional */ }
 }
 
 function renderSamples(d) {
@@ -218,6 +218,27 @@ function renderSamples(d) {
   show.forEach((c, i) => renderMiniCrystal(`mv${i}`, c));
 }
 
+function renderVPO(d) {
+  const status = $g("vpoStatus");
+  if (!d || (d.n || 0) === 0 || d.status === "waiting") {
+    if (status) status.textContent = "VPO run not started yet — charts populate once training begins.";
+    lineChart("vpoSetChart", []); lineChart("vpoObjChart", []);
+    return;
+  }
+  lineChart("vpoSetChart", [{ x: d.updates, y: d.set_reward, color: "#9333ea", label: "Pareto-coverage reward", ma: true }], {});
+  lineChart("vpoObjChart", [
+    { x: d.updates, y: d.obj_tc, color: "#2563eb", label: "Tc", ma: true },
+    { x: d.updates, y: d.obj_stability, color: "#16a34a", label: "stability", ma: true },
+    { x: d.updates, y: d.obj_relax, color: "#dc2626", label: "relax", ma: true },
+  ], {});
+  if (status) {
+    const last = [...(d.tcad || [])].reverse().find((v) => v != null && v === v);
+    status.innerHTML = `${d.n} updates` +
+      (d.target != null ? ` · target T<sub>c</sub> ${(+d.target).toFixed(1)} K` : "") +
+      (last != null ? ` · latest mean predicted T<sub>c</sub> ≈ ${last.toFixed(1)} K` : "");
+  }
+}
+
 function initGrpo() {
   renderGroup();
   const load = () => fetch("data/grpo_progress.json", { cache: "no-store" })
@@ -225,7 +246,10 @@ function initGrpo() {
   load();
   fetch("data/grpo_samples.json", { cache: "no-store" })
     .then((r) => r.json()).then(renderSamples).catch(() => renderSamples(null));
-  window.addEventListener("resize", load);
+  const loadVpo = () => fetch("data/vpo_progress.json", { cache: "no-store" })
+    .then((r) => r.json()).then(renderVPO).catch(() => renderVPO(null));
+  loadVpo();
+  window.addEventListener("resize", () => { load(); loadVpo(); });
 }
 
 window.addEventListener("load", initGrpo);

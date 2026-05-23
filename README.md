@@ -2,12 +2,13 @@
 
 Post-training methods for [GuidedMatDiffusion](https://github.com/paprakash/GuidedMatDiffusion) — a property-conditioned crystal diffusion model built on [DiffCSP](https://github.com/jiaor17/DiffCSP) — with the goal of raising the hit rate of generated crystals through downstream physical screens at matched sampling compute.
 
-This repository contains two complementary post-training projects, each in its own self-contained folder:
+This repository contains three complementary post-training projects, each in its own self-contained folder:
 
 | Project | Folder | Method |
 |---|---|---|
 | **DPO** | [`dpo/`](dpo/README.md) | Offline Diffusion Direct Preference Optimization with [CHGNet](https://github.com/CederGroupHub/chgnet) stability scores |
 | **GRPO** | [`grpo/`](grpo/README.md) | Online Group Relative Policy Optimization with a composite BEE-NET + MEGNet reward |
+| **VPO** | [`vpo/`](vpo/README.md) | Online Vector (multi-objective) Policy Optimization over a BEE-NET + CHGNet + M3GNet reward *vector* ([Bahlous-Boldi et al., 2026](https://arxiv.org/abs/2605.22817)) |
 
 Both methods freeze the equivariant DiffCSP backbone and update only an adapter and property-embedding pathway. The upstream pretrained model and its training pipeline are reused as-is.
 

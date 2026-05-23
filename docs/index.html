@@ -70,6 +70,31 @@
     <p class="lead" style="margin-bottom:14px;">Real crystals generated for a target T<sub>c</sub> and scored by BEE-NET — one GRPO group. Candidates above the group mean are reinforced, below are suppressed; repeated over training, this pulls the generator toward higher-T<sub>c</sub> structures. Drag to rotate any cell.</p>
     <div id="grpoSamples"></div>
   </section>
+
+  <hr class="section-rule" />
+
+  <section class="vpo">
+    <h2>VPO — vector (multi-objective) policy optimization</h2>
+    <p class="lead">GRPO optimizes one scalar reward. <b>VPO</b>
+      (<a href="https://arxiv.org/abs/2605.22817" target="_blank">Bahlous-Boldi et al., 2026</a>)
+      optimizes a <em>vector</em> reward so the sampled group spreads across the Pareto front —
+      raising best-of-k hit rate under downstream screens. Here the vector is three complementary
+      objectives, all scored in one torch process (no TensorFlow):</p>
+
+    <div class="grpo-loop">
+      <div class="step"><span class="n">T<sub>c</sub></span>BEE-NET<small>Allen–Dynes T<sub>c</sub></small></div>
+      <div class="step"><span class="n">S</span>CHGNet<small>thermodynamic stability</small></div>
+      <div class="step"><span class="n">R</span>M3GNet<small>relaxation / dynamical stability</small></div>
+    </div>
+
+    <h3>Pareto-coverage reward over training</h3>
+    <div id="vpoSetChart" class="chart"></div>
+
+    <h3>Each objective's group mean</h3>
+    <div id="vpoObjChart" class="chart"></div>
+
+    <div id="vpoStatus" class="grpo-status mono"></div>
+  </section>
 </main>
 
 <script src="app.js"></script>

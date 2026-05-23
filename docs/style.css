@@ -197,6 +197,28 @@ select {
 }
 .grpo-status { margin-top: 16px; color: var(--muted); font-size: 0.85rem; }
 
+/* animated GRPO mechanism column */
+.ga { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: #fff; }
+.ga-phase { font-size: 0.92rem; font-weight: 600; color: var(--accent); margin-bottom: 12px; min-height: 1.3em; }
+.ga-col { display: flex; flex-direction: column; gap: 8px; }
+.ga-row { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; transition: all 0.5s ease; }
+.ga-mv { width: 88px; height: 78px; flex: 0 0 auto; }
+.ga-info { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; flex: 1 1 auto; }
+.ga-formula { font-size: 0.95rem; }
+.ga-tc { font-size: 0.85rem; color: var(--fg); opacity: 0; transition: opacity 0.5s; }
+.ga-adv { font-size: 0.82rem; opacity: 0; transition: opacity 0.5s; }
+.ga-adv.up { color: #15803d; }
+.ga-adv.down { color: #b91c1c; }
+.ga-tag { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.5s; margin-left: auto; }
+.ga-row[data-up="1"] .ga-tag { color: #15803d; }
+.ga-row[data-up="0"] .ga-tag { color: #b91c1c; }
+.ga-mean { margin-top: 12px; color: var(--muted); font-size: 0.82rem; }
+.ga[data-phase="2"] .ga-tc, .ga[data-phase="3"] .ga-tc, .ga[data-phase="4"] .ga-tc { opacity: 1; }
+.ga[data-phase="3"] .ga-adv, .ga[data-phase="4"] .ga-adv { opacity: 1; }
+.ga[data-phase="4"] .ga-tag { opacity: 1; }
+.ga[data-phase="4"] .ga-row[data-up="1"] { box-shadow: 0 0 0 2px #15803d; }
+.ga[data-phase="4"] .ga-row[data-up="0"] { opacity: 0.45; }
+
 /* GRPO sample-crystal gallery */
 .samples-stat { color: var(--fg); font-size: 0.88rem; margin: 0 0 12px; }
 .samples-stat b { color: var(--fg); }
