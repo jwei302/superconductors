@@ -33,10 +33,11 @@ h1 {
   position: relative;
   width: 100%;
   height: 480px;
-  background: var(--canvas);
-  border: 1px solid var(--line);
+  background: #ffffff;
+  border: 1.5px solid #1f2937;   /* dark frame so the figure stands off the page */
   border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .controls {
@@ -105,15 +106,11 @@ select {
   padding: 5px 9px; font-size: 0.9rem; cursor: pointer;
 }
 
-.legend { display: flex; flex-wrap: wrap; gap: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; }
 .legend-item {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 0.9rem; color: var(--fg);
-}
-.swatch {
-  width: 13px; height: 13px; border-radius: 3px;
-  border: 1px solid rgba(0,0,0,0.12);
-  display: inline-block;
+  font-size: 0.85rem; color: var(--fg);
+  border: 1px solid var(--line); border-radius: 5px;
+  padding: 2px 9px;
 }
 
 .meta {

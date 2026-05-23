@@ -1,7 +1,9 @@
 /* Crystal diffusion scrubber — renders precomputed denoising trajectories.
    Data: data/trajectories.json (written by viz/export_trajectory.py). */
 
-const FRAME_MS = 120;   // playback speed (slow)
+const FRAME_MS = 120;            // playback speed (slow)
+const ATOM_COLOR = "#111827";    // all atoms one dark color, on a white canvas
+const CELL_COLOR = "#3a4250";    // dark unit-cell wireframe
 
 let DATA = null;
 let viewer = null;
@@ -10,23 +12,21 @@ let frame = 0;          // current frame index
 let playing = false;
 let timer = null;
 
-const elColors = (window.$3Dmol && $3Dmol.elementColors)
-  ? ($3Dmol.elementColors.Jmol || $3Dmol.elementColors.defaultColors)
-  : {};
-
 const $ = (id) => document.getElementById(id);
 
-function hex(n) { return "#" + ("000000" + (n >>> 0).toString(16)).slice(-6); }
-
-function elemColorHex(sym) {
-  const c = elColors[sym];
-  return (c === undefined) ? "#cccccc" : hex(c);
+function fracToCart(fr, L) {
+  // cart_j = sum_i frac_i * L[i][j]  (rows of L are lattice vectors)
+  return [
+    fr[0] * L[0][0] + fr[1] * L[1][0] + fr[2] * L[2][0],
+    fr[0] * L[0][1] + fr[1] * L[1][1] + fr[2] * L[2][1],
+    fr[0] * L[0][2] + fr[1] * L[1][2] + fr[2] * L[2][2],
+  ];
 }
 
-function xyzString(f) {
+function xyzString(f, L) {
   const lines = [String(f.elems.length), ""];
   for (let i = 0; i < f.elems.length; i++) {
-    const p = f.xyz[i];
+    const p = fracToCart(f.frac[i], L);
     lines.push(`${f.elems[i]} ${p[0]} ${p[1]} ${p[2]}`);
   }
   return lines.join("\n");
@@ -55,7 +55,7 @@ function drawCell(L) {
         viewer.addCylinder({
           start: { x: c[a].x, y: c[a].y, z: c[a].z },
           end: { x: c[b].x, y: c[b].y, z: c[b].z },
-          radius: 0.04, color: "#6b7280", fromCap: 1, toCap: 1,
+          radius: 0.04, color: CELL_COLOR, fromCap: 1, toCap: 1,
         });
       }
     }
@@ -64,13 +64,14 @@ function drawCell(L) {
 
 function renderFrame(idx, recenter = false) {
   const crystal = DATA.crystals[cur];
+  const L = crystal.lattice;            // fixed cell (final lattice) for every frame
   const f = crystal.frames[idx];
   viewer.removeAllModels();
   viewer.removeAllShapes();
-  viewer.addModel(xyzString(f), "xyz");
-  viewer.setStyle({}, { sphere: { scale: 0.34, colorscheme: "Jmol" } });
-  drawCell(f.lattice);
-  if (recenter) { viewer.zoomTo(); viewer.zoom(0.7); }
+  viewer.addModel(xyzString(f, L), "xyz");
+  viewer.setStyle({}, { sphere: { scale: 0.34, color: ATOM_COLOR } });
+  drawCell(L);
+  if (recenter) { viewer.zoomTo(); viewer.zoom(0.78); }  // frame once; rotation persists after
   viewer.render();
   $("stepLabel").textContent = `t = ${f.t}`;
 }
@@ -80,7 +81,7 @@ function loadCrystal(i) {
   const crystal = DATA.crystals[i];
   $("slider").max = String(crystal.frames.length - 1);
   buildLegend(crystal);
-  renderFrame(crystal.frames.length - 1, true);  // frame final crystal once
+  renderFrame(crystal.frames.length - 1, true);  // frame the finished crystal once
   setFrame(0);                                    // then start at pure noise
 }
 
@@ -93,9 +94,7 @@ function buildLegend(crystal) {
   Object.keys(counts).sort().forEach((sym) => {
     const item = document.createElement("div");
     item.className = "legend-item";
-    item.innerHTML =
-      `<span class="swatch" style="background:${elemColorHex(sym)}"></span>` +
-      `<span>${sym}</span>`;
+    item.textContent = sym;
     box.appendChild(item);
   });
 }
@@ -125,7 +124,7 @@ function togglePlay() {
 }
 
 function init() {
-  viewer = $3Dmol.createViewer($("viewer"), { backgroundColor: "#1c2026" });
+  viewer = $3Dmol.createViewer($("viewer"), { backgroundColor: "white" });
 
   fetch("data/trajectories.json")
     .then((r) => r.json())

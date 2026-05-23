@@ -89,16 +89,18 @@ def main():
     n_steps_total = S - 1
     keep = frame_indices(n_steps_total, args.frames)
 
-    # split node arrays per crystal
+    # split node arrays per crystal. We export per-frame fractional coords plus a
+    # single fixed (final) lattice per crystal so the web viewer can hold the unit
+    # cell in one orientation while atoms denoise inside it (cart = frac @ L_fixed).
     offsets = np.cumsum([0] + num_atoms)
+    s_final = keep[-1]  # last kept frame == t=0 (the finished crystal)
     crystals = []
     for b, n_at in enumerate(num_atoms):
         lo, hi = offsets[b], offsets[b + 1]
+        L_fixed = lattices[s_final, b]                      # (3, 3)
         frames = []
         for s in keep:
-            L = lattices[s, b]                              # (3, 3)
-            fr = fracs[s, lo:hi]                            # (n_at, 3)
-            cart = fr @ L                                   # (n_at, 3)
+            fr = fracs[s, lo:hi]                            # (n_at, 3) wrapped frac
             zs = atom_types[s, lo:hi].astype(int)
             elems = [chemical_symbols[int(z)] if 0 <= z < len(chemical_symbols)
                      else "X" for z in zs]
@@ -106,13 +108,10 @@ def main():
             t_diff = n_steps_total - s
             frames.append({
                 "t": int(t_diff),
-                "lattice": [[round(float(v), 4) for v in row] for row in L],
                 "elems": elems,
-                "xyz": [[round(float(c), 4) for c in pos] for pos in cart],
+                "frac": [[round(float(c), 4) for c in pos] for pos in fr],
             })
         final_elems = frames[-1]["elems"]
-        formula = "".join(sorted(set(final_elems),
-                                 key=lambda e: final_elems.count(e), reverse=True))
         comp = {}
         for e in final_elems:
             comp[e] = comp.get(e, 0) + 1
@@ -122,6 +121,7 @@ def main():
             "id": b,
             "num_atoms": int(n_at),
             "formula": formula,
+            "lattice": [[round(float(v), 4) for v in row] for row in L_fixed],
             "frames": frames,
         })
 
