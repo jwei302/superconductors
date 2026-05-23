@@ -36,8 +36,39 @@
       <li><b>Lattice (3&times;3)</b> — the lattice matrix is diffused with Gaussian DDPM, equivariant to global rotations of the unit cell.</li>
     </ul>
   </div>
+
+  <hr class="section-rule" />
+
+  <section class="grpo">
+    <h2>GRPO post-training</h2>
+    <p class="lead">The pre-trained generator is then fine-tuned with <b>Group Relative Policy
+    Optimization</b>. For a target T<sub>c</sub>, the policy samples a <em>group</em> of candidate
+    crystals; each is scored by a BEE-NET Allen&ndash;Dynes T<sub>c</sub> model; the policy is pushed
+    toward the members that beat the group average.</p>
+
+    <div class="grpo-loop">
+      <div class="step"><span class="n">1</span>Sample a group<small>candidates for one target T<sub>c</sub></small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">2</span>Score T<sub>c</sub><small>BEE-NET reward each</small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">3</span>Relative advantage<small>reward &minus; group mean</small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">4</span>Update policy<small>reinforce winners</small></div>
+    </div>
+
+    <div class="grpo-group" id="grpoGroup"></div>
+
+    <h3>Reward over training</h3>
+    <div id="rewardChart" class="chart"></div>
+
+    <h3>Mean predicted T<sub>c</sub> per update</h3>
+    <div id="tcadChart" class="chart"></div>
+
+    <div id="grpoStatus" class="grpo-status mono"></div>
+  </section>
 </main>
 
 <script src="app.js"></script>
+<script src="grpo.js"></script>
 </body>
 </html>

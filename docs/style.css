@@ -140,3 +140,59 @@ select {
   text-align: center; color: var(--muted); padding: 24px; gap: 8px;
 }
 .err code { color: var(--accent); }
+
+/* ---- GRPO section ---- */
+.section-rule {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 44px 0 28px;
+}
+.grpo h2 { font-size: 1.2rem; font-weight: 600; margin: 0 0 10px; }
+.grpo h3 { font-size: 0.95rem; font-weight: 600; margin: 26px 0 8px; }
+.grpo .lead { color: var(--muted); font-size: 0.92rem; margin: 0 0 22px; }
+.grpo .lead b { color: var(--fg); }
+.grpo .lead em { font-style: normal; color: var(--accent); }
+
+.grpo-loop {
+  display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px;
+  margin: 18px 0 24px;
+}
+.grpo-loop .step {
+  flex: 1 1 0; min-width: 120px;
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; font-size: 0.85rem; font-weight: 600;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.grpo-loop .step small { font-weight: 400; color: var(--muted); font-size: 0.78rem; }
+.grpo-loop .step .n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 0.72rem; margin-bottom: 2px;
+}
+.grpo-loop .arrow { display: flex; align-items: center; color: var(--muted); font-size: 1rem; }
+
+.grpo-group { margin: 0 0 8px; }
+.group-label { color: var(--muted); font-size: 0.82rem; margin-bottom: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: flex; flex-direction: column; align-items: center;
+  border-radius: 7px; padding: 7px 12px; min-width: 64px;
+  font-size: 0.9rem; border: 1px solid var(--line);
+}
+.chip small { font-size: 0.74rem; opacity: 0.8; }
+.chip.up { background: #e9f7ee; border-color: #b6e3c6; color: #15803d; }
+.chip.down { background: #fdecec; border-color: #f3c0c0; color: #b91c1c; }
+.group-cap { margin-top: 10px; color: var(--muted); font-size: 0.8rem; display: flex; align-items: center; }
+.group-cap .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; }
+.group-cap .sw.up { background: #15803d; }
+.group-cap .sw.down { background: #b91c1c; }
+
+.chart {
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 4px; background: #fff; min-height: 120px;
+}
+.chart-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 200px; color: var(--muted); font-size: 0.9rem;
+}
+.grpo-status { margin-top: 16px; color: var(--muted); font-size: 0.85rem; }

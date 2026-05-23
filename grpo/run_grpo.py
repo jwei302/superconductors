@@ -10,6 +10,13 @@ from omegaconf import OmegaConf
 import torch
 
 from diffcsp.common.utils import PROJECT_ROOT
+
+import sys as _sys
+# Make the in-tree `scripts/` package importable regardless of launch style
+# (`python grpo/run_grpo.py`, sbatch, etc.); `scripts` is not an installed package.
+_sys.path.insert(0, str(PROJECT_ROOT))
+_sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+
 from grpo.prompts import TcCurriculumSampler
 from grpo.rewards import RewardManager
 from grpo.trainer import GRPOTrainer

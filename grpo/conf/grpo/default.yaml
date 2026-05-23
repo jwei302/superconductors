@@ -47,7 +47,13 @@ rewards:
     ensemble_size: 4
     start_index: 0
     device: cpu
+    # Public BETE-NET CSO weights (lmax=1, pre-batch-norm) are used as a drop-in
+    # substitute for the unreleased BEE-NET EMD ensemble. With the true EMD
+    # checkpoints, set lmax=3 and strict_load=true.
+    lmax: 1
+    strict_load: false
   megnet:
+    enabled: true
     formation_model: Eform_MP_2019
     bandgap_model: Bandgap_MP_2018
     metal_threshold: 0.05

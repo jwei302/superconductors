@@ -271,6 +271,8 @@ class BEECSORewardModel:
         start_index: int = 0,
         device: str = "cpu",
         r_max: float = 4.0,
+        lmax: int = 3,
+        strict_load: bool = True,
     ) -> None:
         repo_root = Path(repo_root)
         workflow_root = repo_root / "external" / "BEE-NET" / "workflow"
@@ -288,6 +290,7 @@ class BEECSORewardModel:
         self.device = torch.device(device)
         self.default_dtype = torch.float64
         self.r_max = r_max
+        self.strict_load = strict_load
 
         checkpoints_dir = Path(checkpoints_dir or repo_root / "checkpoints" / "bee_net" / "CSO")
         checkpoint_paths = sorted(checkpoints_dir.glob("model_CSO_derived_EMD_0_*.pt1.pt"))
@@ -317,7 +320,7 @@ class BEECSORewardModel:
             irreps_node_attr="64x0e",
             layers=2,
             mul=32,
-            lmax=3,
+            lmax=lmax,
             max_radius=self.r_max,
             num_neighbors=17.133204568916714,
             reduce_output=True,
@@ -426,7 +429,7 @@ class BEECSORewardModel:
             predictions = []
             with torch.no_grad():
                 for state_dict in self.state_dicts:
-                    self.model.load_state_dict(state_dict)
+                    self.model.load_state_dict(state_dict, strict=self.strict_load)
                     for batch in loader:
                         batch = batch.to(self.device)
                         output = self.model(batch).detach().cpu().numpy()[0]
@@ -609,13 +612,17 @@ class RewardManager:
             ensemble_size=reward_cfg.bee.ensemble_size,
             start_index=reward_cfg.bee.start_index,
             device=reward_cfg.bee.device,
+            lmax=int(getattr(reward_cfg.bee, "lmax", 3)),
+            strict_load=bool(getattr(reward_cfg.bee, "strict_load", True)),
         )
-        self.meg = MEGNetRewardModel(
-            repo_root=self.repo_root,
-            formation_model=reward_cfg.megnet.formation_model,
-            bandgap_model=reward_cfg.megnet.bandgap_model,
-            metal_threshold=reward_cfg.megnet.metal_threshold,
-        )
+        self.meg = None
+        if bool(getattr(reward_cfg.megnet, "enabled", True)):
+            self.meg = MEGNetRewardModel(
+                repo_root=self.repo_root,
+                formation_model=reward_cfg.megnet.formation_model,
+                bandgap_model=reward_cfg.megnet.bandgap_model,
+                metal_threshold=reward_cfg.megnet.metal_threshold,
+            )
         self.m3g = None
         if reward_cfg.m3gnet.enabled:
             self.m3g = M3GNetRewardModel(
@@ -695,11 +702,14 @@ class RewardManager:
                 bee_tcad[branch_idx, time_idx] = float(output.get("tcad", np.nan))
             terminal_bee_outputs[branch_idx] = bee_outputs[-1]
 
-            meg_output = self.meg.score_states([branch["final_state"]])[0]
-            meg_rewards[branch_idx] = self._meg_reward(meg_output)
-            meg_band_gap[branch_idx] = float(meg_output.get("band_gap", np.nan))
-            meg_formation_energy[branch_idx] = float(meg_output.get("formation_energy", np.nan))
-            terminal_meg_outputs[branch_idx] = meg_output
+            if self.meg is not None:
+                meg_output = self.meg.score_states([branch["final_state"]])[0]
+                meg_rewards[branch_idx] = self._meg_reward(meg_output)
+                meg_band_gap[branch_idx] = float(meg_output.get("band_gap", np.nan))
+                meg_formation_energy[branch_idx] = float(meg_output.get("formation_energy", np.nan))
+                terminal_meg_outputs[branch_idx] = meg_output
+            else:
+                terminal_meg_outputs[branch_idx] = {"valid": False}
 
         ranking_scores = bee_potentials[:, -1] + meg_rewards
         m3g_rewards = np.zeros(num_branches, dtype=np.float32)
@@ -755,7 +765,11 @@ class RewardManager:
     ) -> dict:
         validity = summarize_validity(clean_states)
         bee_outputs = self.bee.score_states(clean_states)
-        meg_outputs = self.meg.score_states(clean_states)
+        meg_outputs = (
+            self.meg.score_states(clean_states)
+            if self.meg is not None
+            else [{"valid": False} for _ in clean_states]
+        )
 
         m3g_outputs = None
         if run_m3g and self.m3g is not None:
@@ -827,9 +841,12 @@ class RewardManager:
         bee_outputs = self.bee.score_states(clean_states)
         bee_time = time.perf_counter() - started
 
-        started = time.perf_counter()
-        meg_outputs = self.meg.score_states(clean_states)
-        meg_time = time.perf_counter() - started
+        meg_outputs = None
+        meg_time = None
+        if self.meg is not None:
+            started = time.perf_counter()
+            meg_outputs = self.meg.score_states(clean_states)
+            meg_time = time.perf_counter() - started
 
         m3g_outputs = None
         m3g_time = None

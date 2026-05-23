@@ -353,10 +353,29 @@ class GRPOTrainer:
 
             self.optimizer.zero_grad(set_to_none=True)
             update_loss = torch.zeros([], device=self.device)
+            reward_stats = []
 
             for _ in range(self.cfg.sampling.num_groups_per_update):
                 prompt, rollout_group, rewards = self._collect_group()
                 update_loss = update_loss + self._group_loss(prompt, rollout_group, rewards)
+                term_pot = rewards.bee_potentials[:, -1]
+                term_tcad = rewards.bee_tcad[:, -1]
+                finite = torch.isfinite(term_tcad)
+                reward_stats.append({
+                    "reward_bee_potential": float(term_pot.mean().item()),
+                    "bee_potential_max": float(term_pot.max().item()),
+                    "tcad_pred": float(term_tcad[finite].mean().item()) if bool(finite.any()) else float("nan"),
+                    "tcad_max": float(term_tcad[finite].max().item()) if bool(finite.any()) else float("nan"),
+                    "ranking_score": float(rewards.ranking_scores.mean().item()),
+                    "target_tc": float(prompt.target_raw),
+                })
+
+            def _agg(key):
+                vals = [s[key] for s in reward_stats if s[key] == s[key]]  # drop NaN
+                return sum(vals) / len(vals) if vals else float("nan")
+            reward_log = {k: _agg(k) for k in (
+                "reward_bee_potential", "bee_potential_max", "tcad_pred",
+                "tcad_max", "ranking_score", "target_tc")}
 
             update_loss = update_loss / max(self.cfg.sampling.num_groups_per_update, 1)
             if not torch.isfinite(update_loss):
@@ -369,6 +388,7 @@ class GRPOTrainer:
                         "loss": float(update_loss.detach().cpu().item()),
                         "finite": False,
                         "skipped": True,
+                        **reward_log,
                     }) + "\n")
                 continue
             update_loss.backward()
@@ -387,6 +407,7 @@ class GRPOTrainer:
                     "skipped": False,
                     "checkpoint_due": checkpoint_saved,
                     "eval_due": eval_saved,
+                    **reward_log,
                 }) + "\n")
 
             if checkpoint_saved:
