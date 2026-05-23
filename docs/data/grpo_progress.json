@@ -1,1 +1,1 @@
-{"status":"waiting","n":0,"target":null,"updates":[],"reward":[],"tcad":[],"tcad_max":[],"loss":[]}
+{"status":"running","n":1,"target":11.480884076106648,"source":"/nfs/roberts/scratch/pi_jks79/jw2933/GuidedMatDiffusion/hydra_jobs/singlerun/2026-05-22/grpo_beeonly/train_progress.jsonl","updates":[1],"reward":[-2.1843347772955894],"tcad":[1.349122405052185],"tcad_max":[1.47686368227005],"loss":[1717333.960576098]}
