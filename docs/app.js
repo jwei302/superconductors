@@ -131,6 +131,12 @@ function init() {
     .then((r) => r.json())
     .then((d) => {
       DATA = d;
+      const m = d.meta;
+      const tc = (m.tc_target_actual != null)
+        ? `${m.tc_target_actual.toFixed(1)} K` : `scaled ${m.band_gap_scaled}`;
+      $("meta").innerHTML =
+        `target T<sub>c</sub> = ${tc} &nbsp;·&nbsp; guide&nbsp;w = ${m.guide_w}` +
+        ` &nbsp;·&nbsp; ${m.n_steps_total} diffusion steps`;
       const sel = $("crystalSel");
       d.crystals.forEach((c, i) => {
         const o = document.createElement("option");

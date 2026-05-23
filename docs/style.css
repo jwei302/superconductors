@@ -116,6 +116,23 @@ select {
   display: inline-block;
 }
 
+.meta {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.how {
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+.how p { color: var(--muted); margin: 0 0 8px; }
+.how ul { margin: 0; padding-left: 18px; }
+.how li { margin: 5px 0; }
+.how b { font-weight: 600; }
+
 .err {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; justify-content: center; align-items: center;

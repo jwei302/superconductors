@@ -25,6 +25,17 @@
     </label>
     <div id="legendItems" class="legend"></div>
   </div>
+
+  <div class="meta mono" id="meta"></div>
+
+  <div class="how">
+    <p>All three crystal components are denoised jointly by one E(3)-equivariant graph network:</p>
+    <ul>
+      <li><b>Fractional coordinates</b> — diffused on the periodic 3-torus via wrapped-normal score matching, sampled with a predictor&ndash;corrector (Langevin) scheme that respects translational symmetry.</li>
+      <li><b>Atom types</b> — each atom is relaxed to a continuous 100-dimensional one-hot vector, diffused with Gaussian DDPM, then decoded back to a discrete element by arg-max.</li>
+      <li><b>Lattice (3&times;3)</b> — the lattice matrix is diffused with Gaussian DDPM, equivariant to global rotations of the unit cell.</li>
+    </ul>
+  </div>
 </main>
 
 <script src="app.js"></script>
