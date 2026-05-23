@@ -4,7 +4,6 @@
   --muted: #6b7280;
   --line: #e2e5e9;
   --accent: #2563eb;
-  --canvas: #1c2026;
 }
 * { box-sizing: border-box; }
 body {
@@ -34,10 +33,10 @@ h1 {
   width: 100%;
   height: 480px;
   background: #ffffff;
-  border: 1.5px solid #1f2937;   /* dark frame so the figure stands off the page */
+  border: 1px solid var(--line);   /* light, subtle frame (no dark box) */
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .controls {
@@ -106,23 +105,28 @@ select {
   padding: 5px 9px; font-size: 0.9rem; cursor: pointer;
 }
 
-.legend { display: flex; flex-wrap: wrap; gap: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; }
 .legend-item {
-  font-size: 0.85rem; color: var(--fg);
-  border: 1px solid var(--line); border-radius: 5px;
-  padding: 2px 9px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.9rem; color: var(--fg);
+}
+.swatch {
+  width: 13px; height: 13px; border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.15);
+  display: inline-block;
 }
 
+/* Tc / guide-w / steps sits ABOVE the horizontal rule; the rule introduces the notes */
 .meta {
   margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.85rem;
 }
 
 .how {
-  margin-top: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
   font-size: 0.9rem;
 }
 .how p { color: var(--muted); margin: 0 0 8px; }
@@ -133,6 +137,6 @@ select {
 .err {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; justify-content: center; align-items: center;
-  text-align: center; color: #c7ccd3; padding: 24px; gap: 8px;
+  text-align: center; color: var(--muted); padding: 24px; gap: 8px;
 }
-.err code { color: #8ab4ff; }
+.err code { color: var(--accent); }
