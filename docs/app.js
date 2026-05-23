@@ -1,10 +1,12 @@
 /* Crystal diffusion scrubber — renders precomputed denoising trajectories.
    Data: data/trajectories.json (written by viz/export_trajectory.py). */
 
+const FRAME_MS = 120;   // playback speed (slow)
+
 let DATA = null;
 let viewer = null;
-let cur = 0;        // current crystal index
-let frame = 0;      // current frame index
+let cur = 0;            // current crystal index
+let frame = 0;          // current frame index
 let playing = false;
 let timer = null;
 
@@ -31,7 +33,6 @@ function xyzString(f) {
 }
 
 function cellCorners(L) {
-  // L = [[ax,ay,az],[bx,by,bz],[cx,cy,cz]] rows = lattice vectors
   const corners = [];
   for (let i = 0; i < 2; i++)
     for (let j = 0; j < 2; j++)
@@ -49,13 +50,12 @@ function drawCell(L) {
   const c = cellCorners(L);
   for (let a = 0; a < c.length; a++) {
     for (let b = a + 1; b < c.length; b++) {
-      // edge iff bit vectors differ in exactly one position
       const d = (c[a].b[0] !== c[b].b[0]) + (c[a].b[1] !== c[b].b[1]) + (c[a].b[2] !== c[b].b[2]);
       if (d === 1) {
         viewer.addCylinder({
           start: { x: c[a].x, y: c[a].y, z: c[a].z },
           end: { x: c[b].x, y: c[b].y, z: c[b].z },
-          radius: 0.05, color: "#7a8699", fromCap: 1, toCap: 1,
+          radius: 0.04, color: "#6b7280", fromCap: 1, toCap: 1,
         });
       }
     }
@@ -72,26 +72,16 @@ function renderFrame(idx, recenter = false) {
   drawCell(f.lattice);
   if (recenter) { viewer.zoomTo(); viewer.zoom(0.7); }
   viewer.render();
-
-  // labels
-  const total = DATA.meta.n_steps_total;
-  $("stepLabel").textContent = `t = ${f.t}  (${idx + 1}/${crystal.frames.length})`;
-  const isNoise = idx < crystal.frames.length * 0.15;
-  const isCrystal = idx > crystal.frames.length * 0.9;
-  $("phase").textContent = isCrystal ? "crystal" : (isNoise ? "noise" : "denoising");
-  $("phase").className = "phase " + (isCrystal ? "ok" : (isNoise ? "" : "mid"));
+  $("stepLabel").textContent = `t = ${f.t}`;
 }
 
 function loadCrystal(i) {
   cur = i;
   const crystal = DATA.crystals[i];
   $("slider").max = String(crystal.frames.length - 1);
-  $("formula").textContent = crystal.formula;
-  $("natoms").textContent = `${crystal.num_atoms} atoms`;
   buildLegend(crystal);
-  // frame the final crystal once, then jump to noise
-  renderFrame(crystal.frames.length - 1, true);
-  setFrame(0);
+  renderFrame(crystal.frames.length - 1, true);  // frame final crystal once
+  setFrame(0);                                    // then start at pure noise
 }
 
 function buildLegend(crystal) {
@@ -105,7 +95,7 @@ function buildLegend(crystal) {
     item.className = "legend-item";
     item.innerHTML =
       `<span class="swatch" style="background:${elemColorHex(sym)}"></span>` +
-      `<b>${sym}</b><span class="muted"> ×${counts[sym]}</span>`;
+      `<span>${sym}</span>`;
     box.appendChild(item);
   });
 }
@@ -116,33 +106,31 @@ function setFrame(idx) {
   renderFrame(frame);
 }
 
+function stopPlay() {
+  playing = false;
+  $("play").textContent = "▶";
+  clearInterval(timer);
+}
+
 function togglePlay() {
-  playing = !playing;
-  $("play").textContent = playing ? "⏸" : "▶";
-  if (playing) {
-    const ms = parseInt($("speedSel").value, 10);
-    timer = setInterval(() => {
-      const n = DATA.crystals[cur].frames.length;
-      if (frame >= n - 1) { setFrame(0); }
-      else { setFrame(frame + 1); }
-    }, ms);
-  } else {
-    clearInterval(timer);
-  }
+  if (playing) { stopPlay(); return; }
+  const n = DATA.crystals[cur].frames.length;
+  if (frame >= n - 1) setFrame(0);   // replay from noise if parked at the end
+  playing = true;
+  $("play").textContent = "⏸";
+  timer = setInterval(() => {
+    if (frame >= n - 1) { stopPlay(); return; }  // pause on the final crystal
+    setFrame(frame + 1);
+  }, FRAME_MS);
 }
 
 function init() {
-  viewer = $3Dmol.createViewer($("viewer"), { backgroundColor: "#0e1116" });
+  viewer = $3Dmol.createViewer($("viewer"), { backgroundColor: "#1c2026" });
 
   fetch("data/trajectories.json")
     .then((r) => r.json())
     .then((d) => {
       DATA = d;
-      $("tc").textContent = d.meta.tc_target_actual != null
-        ? `${d.meta.tc_target_actual.toFixed(1)} K` : `scaled ${d.meta.band_gap_scaled}`;
-      $("gw").textContent = d.meta.guide_w;
-      $("nsteps").textContent = d.meta.n_steps_total;
-
       const sel = $("crystalSel");
       d.crystals.forEach((c, i) => {
         const o = document.createElement("option");
@@ -150,18 +138,15 @@ function init() {
         o.textContent = `#${i + 1} — ${c.formula}`;
         sel.appendChild(o);
       });
-      sel.onchange = () => { if (playing) togglePlay(); loadCrystal(parseInt(sel.value, 10)); };
-
-      $("slider").oninput = (e) => { if (playing) togglePlay(); setFrame(parseInt(e.target.value, 10)); };
+      sel.onchange = () => { stopPlay(); loadCrystal(parseInt(sel.value, 10)); };
+      $("slider").oninput = (e) => { stopPlay(); setFrame(parseInt(e.target.value, 10)); };
       $("play").onclick = togglePlay;
-      $("speedSel").onchange = () => { if (playing) { togglePlay(); togglePlay(); } };
-
       loadCrystal(0);
     })
     .catch((err) => {
       $("viewer").innerHTML =
         `<div class="err">Could not load <code>data/trajectories.json</code>.<br>` +
-        `If viewing locally, serve the folder: <code>python -m http.server -d docs</code><br>` +
+        `Serve the folder locally: <code>python -m http.server -d docs</code><br>` +
         `<small>${err}</small></div>`;
     });
 }
