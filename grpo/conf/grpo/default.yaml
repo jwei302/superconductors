@@ -2,6 +2,9 @@ seed: 42
 
 curriculum:
   upper_fraction: 0.7
+  # if set (e.g. 15.0), train against this fixed target Tc every update instead
+  # of sampling a new one from the curriculum each step (gives a consistent objective)
+  fixed_target: null
 
 sampling:
   guide_w: 1.0

@@ -26,15 +26,19 @@ nvidia-smi -L || true
 python grpo/run_grpo.py \
     expname=${EXPNAME:-grpo_beeonly} \
     optim.optimizer.lr=${LR:-5.0e-7} \
+    grpo.curriculum.fixed_target=${FIXED_TARGET:-null} \
+    grpo.loss.kl_beta=${KL:-0.05} \
+    grpo.loss.clip_eps=${CLIP:-0.02} \
+    grpo.sampling.num_groups_per_update=${GROUPS:-2} \
+    grpo.sampling.num_branches=${BRANCHES:-6} \
+    grpo.schedule.max_updates=${MAXUP:-10000} \
+    grpo.checkpoint.interval=${CKPT_INT:-25} \
+    grpo.eval.interval=${EVAL_INT:-100} \
     paths.policy_checkpoint="${PROJECT_ROOT}/models/superconductor_generator" \
     grpo.rewards.megnet.enabled=false \
     grpo.rewards.m3gnet.enabled=false \
     grpo.loss.meg_weight=0 \
     grpo.loss.m3g_weight=0 \
-    grpo.sampling.num_groups_per_update=2 \
-    grpo.sampling.num_branches=6 \
-    grpo.checkpoint.interval=25 \
-    grpo.eval.interval=100 \
     grpo.eval.num_prompts=16 \
     grpo.eval.compare_reference=false \
     grpo.eval.run_m3g=false \

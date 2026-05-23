@@ -14,7 +14,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUT = PROJECT_ROOT / "docs" / "data" / "grpo_progress.json"
 
-LABELS = {"grpo_beeonly": "stable", "grpo_bee_hilr": "high-LR"}
+LABELS = {"grpo_beeonly": "stable", "grpo_bee_hilr": "high-LR",
+          "grpo_retuned_a": "re-tuned A", "grpo_retuned_b": "re-tuned B"}
 
 
 def lr_for(run_dir: str):
@@ -50,7 +51,8 @@ def load_run(progress_path: str) -> dict:
             except json.JSONDecodeError:
                 continue
     finite = downsample([r for r in rows if r.get("finite", True)])
-    targets = [r.get("target_tc") for r in finite if r.get("target_tc") == r.get("target_tc")]
+    rew = [r.get("reward_bee_potential") for r in finite]
+    valid_rew = [x for x in rew if x is not None and x == x]
     lr = lr_for(run_dir)
     name = LABELS.get(key, key)
     if lr is not None:
@@ -60,11 +62,13 @@ def load_run(progress_path: str) -> dict:
         "name": name,
         "lr": lr,
         "n": len(finite),
-        "target": targets[-1] if targets else None,
+        "mean_reward": (sum(valid_rew) / len(valid_rew)) if valid_rew else None,
         "updates": [r.get("update") for r in finite],
-        "reward": [r.get("reward_bee_potential") for r in finite],
+        "reward": rew,
         "tcad": [r.get("tcad_pred") for r in finite],
         "tcad_max": [r.get("tcad_max") for r in finite],
+        # per-update curriculum target (it varies each update; not a single line)
+        "targets": [r.get("target_tc") for r in finite],
         "loss": [r.get("loss") for r in finite],
     }
 
@@ -77,8 +81,10 @@ def main():
         by_key[os.path.basename(os.path.dirname(p))] = p
     runs = [load_run(p) for p in by_key.values()]
     runs = [r for r in runs if r["n"] > 0]
-    runs.sort(key=lambda r: (r["key"] != "grpo_beeonly", r["key"]))  # stable first
-    out = {"status": "running" if runs else "waiting", "runs": runs}
+    # best = highest mean reward (closest to target on average)
+    runs.sort(key=lambda r: -(r["mean_reward"] if r["mean_reward"] is not None else -1e9))
+    best = runs[0]["key"] if runs else None
+    out = {"status": "running" if runs else "waiting", "best": best, "runs": runs}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "w") as f:
         json.dump(out, f, separators=(",", ":"))

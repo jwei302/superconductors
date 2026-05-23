@@ -63,6 +63,7 @@ def main(cfg: omegaconf.DictConfig):
         prop_key=cfg.data.prop,
         upper_fraction=cfg.grpo.curriculum.upper_fraction,
         seed=cfg.grpo.seed,
+        fixed_target=cfg.grpo.curriculum.get("fixed_target", None),
     )
     validation_prompts = prompt_sampler.build_validation_set(
         size=cfg.grpo.eval.num_prompts,

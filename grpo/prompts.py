@@ -58,12 +58,14 @@ class TcCurriculumSampler:
         prop_key: str = "tcad",
         upper_fraction: float = 0.7,
         seed: int = 0,
+        fixed_target: float | None = None,
     ) -> None:
         self.train_csv = Path(train_csv)
         self.dataset_name = dataset_name
         self.prop_key = prop_key
         self.prop_scaler = prop_scaler
         self.upper_fraction = upper_fraction
+        self.fixed_target = fixed_target
         self.rng = np.random.default_rng(seed)
 
         df = pd.read_csv(self.train_csv)
@@ -84,6 +86,8 @@ class TcCurriculumSampler:
         self.atom_count_prior = self.atom_count_prior / self.atom_count_prior.sum()
 
     def _sample_target_raw(self) -> float:
+        if self.fixed_target is not None:
+            return float(self.fixed_target)
         if self.rng.random() < self.upper_fraction:
             return float(self.rng.choice(self.upper_targets))
         return float(self.rng.choice(self.targets))
