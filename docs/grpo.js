@@ -1,9 +1,12 @@
 /* GRPO section: an illustrative group + live reward curves from training.
-   Data: data/grpo_progress.json (refreshed during the run by
-   viz/export_grpo_progress.py). Charts are hand-rolled SVG (no dependencies). */
+   Data: data/grpo_progress.json (refreshed during runs by
+   viz/export_grpo_progress.py). Charts are hand-rolled SVG (no dependencies).
+   Supports multiple runs (e.g. stable vs high-LR) as overlaid series. */
 
 const SVGNS = "http://www.w3.org/2000/svg";
 const $g = (id) => document.getElementById(id);
+const RUN_COLORS = { grpo_beeonly: "#2563eb", grpo_bee_hilr: "#dc2626" };
+const PALETTE = ["#2563eb", "#dc2626", "#16a34a", "#9333ea"];
 
 function movingAverage(ys, w) {
   const out = [];
@@ -20,7 +23,7 @@ function movingAverage(ys, w) {
 /* ---- illustrative GRPO group (shows the "group relative" idea) ---- */
 function renderGroup() {
   const target = 10.0;
-  const cands = [14.8, 11.2, 9.7, 6.1, 12.5, 3.4];          // predicted Tc of a group
+  const cands = [14.8, 11.2, 9.7, 6.1, 12.5, 3.4];
   const mean = cands.reduce((a, b) => a + b, 0) / cands.length;
   const box = $g("grpoGroup");
   if (!box) return;
@@ -41,31 +44,32 @@ function renderGroup() {
   box.appendChild(cap);
 }
 
-/* ---- minimal SVG line chart ---- */
-function lineChart(elId, xs, ys, opts) {
+/* ---- multi-series SVG line chart (each series: {x, y, color, label, ma}) ---- */
+function lineChart(elId, series, opts) {
   const el = $g(elId);
   if (!el) return;
   el.innerHTML = "";
   opts = opts || {};
-  const W = el.clientWidth || 660, H = 220;
-  const m = { l: 48, r: 16, t: 12, b: 30 };
-  const pts = xs.map((x, i) => [x, ys[i]]).filter((p) => p[1] != null && p[1] === p[1]);
-  if (pts.length < 2) {
-    el.innerHTML = `<div class="chart-empty">waiting for training data…</div>`;
-    return;
-  }
-  const xmin = Math.min(...pts.map((p) => p[0])), xmax = Math.max(...pts.map((p) => p[0]));
-  let ymin = Math.min(...pts.map((p) => p[1])), ymax = Math.max(...pts.map((p) => p[1]));
+  series = (series || []).filter((s) => s && s.x && s.y);
+  const W = el.clientWidth || 660, H = 220, m = { l: 48, r: 16, t: 14, b: 30 };
+
+  const all = [];
+  series.forEach((s) => s.x.forEach((x, i) => {
+    if (s.y[i] != null && s.y[i] === s.y[i]) all.push([x, s.y[i]]);
+  }));
+  if (all.length < 2) { el.innerHTML = `<div class="chart-empty">waiting for training data…</div>`; return; }
+
+  const xmin = Math.min(...all.map((p) => p[0])), xmax = Math.max(...all.map((p) => p[0]));
+  let ymin = Math.min(...all.map((p) => p[1])), ymax = Math.max(...all.map((p) => p[1]));
   if (opts.target != null) { ymin = Math.min(ymin, opts.target); ymax = Math.max(ymax, opts.target); }
   const pad = (ymax - ymin) * 0.1 || 1; ymin -= pad; ymax += pad;
-  const sx = (x) => m.l + (W - m.l - m.r) * (x - xmin) / (xmax - xmin || 1);
-  const sy = (y) => H - m.b - (H - m.t - m.b) * (y - ymin) / (ymax - ymin || 1);
+  const sx = (x) => m.l + (W - m.l - m.r) * (x - xmin) / ((xmax - xmin) || 1);
+  const sy = (y) => H - m.b - (H - m.t - m.b) * (y - ymin) / ((ymax - ymin) || 1);
 
   const svg = document.createElementNS(SVGNS, "svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("width", "100%"); svg.setAttribute("height", H);
 
-  // axes
   const axis = (x1, y1, x2, y2) => {
     const l = document.createElementNS(SVGNS, "line");
     l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
@@ -73,16 +77,13 @@ function lineChart(elId, xs, ys, opts) {
   };
   axis(m.l, m.t, m.l, H - m.b); axis(m.l, H - m.b, W - m.r, H - m.b);
 
-  // y ticks
   for (let i = 0; i <= 4; i++) {
     const yv = ymin + (ymax - ymin) * i / 4;
-    const yy = sy(yv);
     const t = document.createElementNS(SVGNS, "text");
-    t.setAttribute("x", m.l - 8); t.setAttribute("y", yy + 3); t.setAttribute("text-anchor", "end");
+    t.setAttribute("x", m.l - 8); t.setAttribute("y", sy(yv) + 3); t.setAttribute("text-anchor", "end");
     t.setAttribute("font-size", "10"); t.setAttribute("fill", "#6b7280");
     t.textContent = yv.toFixed(Math.abs(ymax - ymin) < 5 ? 2 : 1); svg.appendChild(t);
   }
-  // x label endpoints
   [[xmin, m.l], [xmax, W - m.r]].forEach(([xv, xx]) => {
     const t = document.createElementNS(SVGNS, "text");
     t.setAttribute("x", xx); t.setAttribute("y", H - m.b + 18); t.setAttribute("text-anchor", "middle");
@@ -94,7 +95,6 @@ function lineChart(elId, xs, ys, opts) {
   xlab.setAttribute("text-anchor", "middle"); xlab.setAttribute("font-size", "10"); xlab.setAttribute("fill", "#6b7280");
   xlab.textContent = "update"; svg.appendChild(xlab);
 
-  // target dashed line
   if (opts.target != null) {
     const yt = sy(opts.target);
     const l = document.createElementNS(SVGNS, "line");
@@ -104,52 +104,74 @@ function lineChart(elId, xs, ys, opts) {
     const t = document.createElementNS(SVGNS, "text");
     t.setAttribute("x", W - m.r); t.setAttribute("y", yt - 4); t.setAttribute("text-anchor", "end");
     t.setAttribute("font-size", "10"); t.setAttribute("fill", "#c9871f");
-    t.textContent = `target ${opts.target} K`; svg.appendChild(t);
+    t.textContent = `target ${(+opts.target).toFixed(1)} K`; svg.appendChild(t);
   }
 
-  // line(s): raw (light) + optional moving-average overlay (bold)
-  const col = opts.color || "#2563eb";
-  function drawSeries(ys2, width, opacity) {
-    const p2 = xs.map((x, i) => [x, ys2[i]]).filter((p) => p[1] != null && p[1] === p[1]);
-    if (p2.length < 2) return;
-    const dd = p2.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
+  function path(xy, color, width, opacity) {
+    if (xy.length < 2) return;
+    const dd = xy.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
     const pa = document.createElementNS(SVGNS, "path");
     pa.setAttribute("d", dd); pa.setAttribute("fill", "none");
-    pa.setAttribute("stroke", col); pa.setAttribute("stroke-width", width);
-    pa.setAttribute("stroke-opacity", opacity);
+    pa.setAttribute("stroke", color); pa.setAttribute("stroke-width", width); pa.setAttribute("stroke-opacity", opacity);
     svg.appendChild(pa);
   }
-  drawSeries(ys, 1.2, opts.ma ? 0.32 : 1);
-  if (opts.ma) drawSeries(opts.ma, 2.3, 1);
+  series.forEach((s) => {
+    const raw = s.x.map((x, i) => [x, s.y[i]]).filter((p) => p[1] != null && p[1] === p[1]);
+    path(raw, s.color, 1.2, s.ma ? 0.3 : 1);
+    if (s.ma) {
+      const ma = movingAverage(s.y, 6);
+      path(s.x.map((x, i) => [x, ma[i]]).filter((p) => p[1] != null && p[1] === p[1]), s.color, 2.3, 1);
+    }
+  });
+
+  // legend (top-left)
+  if (series.length && series.some((s) => s.label)) {
+    let ly = m.t + 4;
+    series.forEach((s) => {
+      const ln = document.createElementNS(SVGNS, "line");
+      ln.setAttribute("x1", m.l + 6); ln.setAttribute("y1", ly); ln.setAttribute("x2", m.l + 24); ln.setAttribute("y2", ly);
+      ln.setAttribute("stroke", s.color); ln.setAttribute("stroke-width", "2.3"); svg.appendChild(ln);
+      const tx = document.createElementNS(SVGNS, "text");
+      tx.setAttribute("x", m.l + 28); tx.setAttribute("y", ly + 3); tx.setAttribute("font-size", "10"); tx.setAttribute("fill", "#1a1d21");
+      tx.textContent = s.label; svg.appendChild(tx);
+      ly += 14;
+    });
+  }
   el.appendChild(svg);
 }
 
 function renderCharts(d) {
   const status = $g("grpoStatus");
-  if (!d || d.status === "waiting" || (d.n || 0) === 0) {
+  let runs = (d && d.runs) ? d.runs
+    : (d && d.updates ? [{ name: "run", key: "run", updates: d.updates, reward: d.reward, tcad: d.tcad, target: d.target, n: d.n }] : []);
+  runs = runs.filter((r) => r && (r.n || 0) > 0);
+  if (!runs.length) {
     if (status) status.textContent = "GRPO run not started yet — charts will populate once training begins.";
-    lineChart("rewardChart", [], []); lineChart("tcadChart", [], []);
+    lineChart("rewardChart", []); lineChart("tcadChart", []);
     return;
   }
-  lineChart("rewardChart", d.updates, d.reward, { color: "#2563eb", ma: movingAverage(d.reward, 6) });
-  lineChart("tcadChart", d.updates, d.tcad, { color: "#16a34a", target: d.target, ma: movingAverage(d.tcad, 6) });
+  const mk = (yk) => runs.map((r, i) => ({
+    x: r.updates, y: r[yk], ma: true,
+    color: RUN_COLORS[r.key] || PALETTE[i % PALETTE.length],
+    label: r.name,
+  }));
+  lineChart("rewardChart", mk("reward"), {});
+  const tgt = runs.map((r) => r.target).find((t) => t != null);
+  lineChart("tcadChart", mk("tcad"), { target: tgt });
   if (status) {
-    const lastTc = [...(d.tcad || [])].reverse().find((v) => v != null && v === v);
-    status.innerHTML = `${d.n} updates logged` +
-      (d.target != null ? ` · target T<sub>c</sub> = ${d.target} K` : "") +
-      (lastTc != null ? ` · latest mean predicted T<sub>c</sub> = ${lastTc.toFixed(1)} K` : "");
+    status.innerHTML = runs.map((r) => {
+      const last = [...(r.tcad || [])].reverse().find((v) => v != null && v === v);
+      return `<b>${r.name}</b>: ${r.n} updates` + (last != null ? `, latest mean T<sub>c</sub> ≈ ${last.toFixed(1)} K` : "");
+    }).join(" &nbsp;·&nbsp; ");
   }
 }
 
 function initGrpo() {
   renderGroup();
-  fetch("data/grpo_progress.json", { cache: "no-store" })
-    .then((r) => r.json())
-    .then(renderCharts)
-    .catch(() => renderCharts(null));
+  const load = () => fetch("data/grpo_progress.json", { cache: "no-store" })
+    .then((r) => r.json()).then(renderCharts).catch(() => renderCharts(null));
+  load();
+  window.addEventListener("resize", load);
 }
 
 window.addEventListener("load", initGrpo);
-window.addEventListener("resize", () => {
-  fetch("data/grpo_progress.json", { cache: "no-store" }).then((r) => r.json()).then(renderCharts).catch(() => {});
-});

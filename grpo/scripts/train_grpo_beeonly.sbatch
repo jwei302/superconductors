@@ -24,7 +24,8 @@ echo "=== GRPO BEE-only on $(hostname) ==="
 nvidia-smi -L || true
 
 python grpo/run_grpo.py \
-    expname=grpo_beeonly \
+    expname=${EXPNAME:-grpo_beeonly} \
+    optim.optimizer.lr=${LR:-5.0e-7} \
     paths.policy_checkpoint="${PROJECT_ROOT}/models/superconductor_generator" \
     grpo.rewards.megnet.enabled=false \
     grpo.rewards.m3gnet.enabled=false \
