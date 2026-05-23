@@ -95,9 +95,40 @@
 
     <div id="vpoStatus" class="grpo-status mono"></div>
   </section>
+
+  <hr class="section-rule" />
+
+  <section class="dpo">
+    <h2>DPO — offline preference optimization</h2>
+    <p class="lead">GRPO and VPO learn online from a reward model in the loop. <b>Direct Preference
+      Optimization</b> instead works <em>offline</em>: sample a pool of crystals once, score each by
+      <a href="https://github.com/CederGroupHub/chgnet" target="_blank">CHGNet</a> stability, pair a
+      more-stable winner against a less-stable loser, and train the generator to prefer the winner.
+      No reward model in the loop, no policy-gradient instability — and here it gives the cleanest
+      result of the three.</p>
+
+    <div class="grpo-loop">
+      <div class="step"><span class="n">1</span>Sample a pool<small>crystals from the SFT generator</small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">2</span>Score stability<small>CHGNet energy / atom</small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">3</span>Build pairs<small>stable winner vs loser</small></div>
+      <div class="arrow">&rarr;</div>
+      <div class="step"><span class="n">4</span>Prefer winner<small>DPO update (β-regularized)</small></div>
+    </div>
+
+    <h3>Result: the generator shifts toward more stable crystals</h3>
+    <div id="dpoCards" class="dpo-cards"></div>
+
+    <h3>Energy-per-atom distribution shift</h3>
+    <div id="dpoDistChart" class="chart"></div>
+
+    <div id="dpoStatus" class="grpo-status mono"></div>
+  </section>
 </main>
 
 <script src="app.js"></script>
 <script src="grpo.js"></script>
+<script src="dpo.js"></script>
 </body>
 </html>

@@ -235,3 +235,20 @@ select {
 .sample-cap .tc { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
 .sample-cap .tc.up { color: #15803d; }
 .sample-cap .tc.down { color: #b91c1c; }
+
+/* DPO result cards */
+.dpo-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px; margin: 4px 0 6px;
+}
+.dpo-card {
+  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fff;
+}
+.dc-lab { font-size: 0.86rem; color: var(--muted); display: flex; flex-direction: column; gap: 1px; }
+.dc-lab small { font-size: 0.72rem; opacity: 0.8; }
+.dc-val { font-size: 1.7rem; font-weight: 650; color: #0d9488; margin: 6px 0 2px; line-height: 1.1; }
+.dc-unit { font-size: 0.8rem; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.dc-from { font-size: 0.78rem; color: var(--muted); }
+.dc-from b { color: var(--fg); font-weight: 600; }
+.dc-note { font-size: 0.78rem; margin-top: 6px; color: var(--muted); }
+.dc-note.good { color: #15803d; }
