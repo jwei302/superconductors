@@ -117,10 +117,9 @@ function renderDpo(d) {
   dpoStatCards(d);
   dpoDistChart("dpoDistChart", d);
   if (status) {
-    const p = d.pools[d.primary], c = d.pools[d.collapsed];
-    status.innerHTML = `Headline β=${d.primary} · ${p.n} samples scored by CHGNet. ` +
-      `Smaller β=${d.collapsed} reaches ${(c.hr25 * 100).toFixed(0)}% hit-rate but collapses to ` +
-      `${c.n_chemsys} chemical systems (${(c.top10_share * 100).toFixed(0)}% in its top-10) — reward hacking, not shown.`;
+    const c = d.pools[d.collapsed];
+    status.innerHTML = `Headline β=${d.primary} · smaller β reward-hacks ` +
+      `(β=${d.collapsed} hits ${(c.hr25 * 100).toFixed(0)}% but collapses to ${c.n_chemsys} chemical systems, excluded).`;
   }
 }
 
