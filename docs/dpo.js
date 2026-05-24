@@ -191,17 +191,21 @@ function renderDpoAnim(d) {
         <div class="da-pair">
           <div class="da-cryst win">
             <div class="da-mv" id="daWin"></div>
-            <div class="da-meta"><b>${w.formula}</b>
-              <span class="da-e">${w.energy_per_atom} eV/atom</span>
-              <span class="da-tag up">✓ winner</span></div>
-            <div class="da-push up">↑ raise P</div>
+            <div class="da-info">
+              <div class="da-meta"><b>${w.formula}</b>
+                <span class="da-e">${w.energy_per_atom} eV/atom</span>
+                <span class="da-tag up">✓ winner</span></div>
+              <div class="da-push up">↑ raise P</div>
+            </div>
           </div>
           <div class="da-cryst lose">
             <div class="da-mv" id="daLose"></div>
-            <div class="da-meta"><b>${l.formula}</b>
-              <span class="da-e">${l.energy_per_atom} eV/atom</span>
-              <span class="da-tag down">✗ loser</span></div>
-            <div class="da-push down">↓ lower P</div>
+            <div class="da-info">
+              <div class="da-meta"><b>${l.formula}</b>
+                <span class="da-e">${l.energy_per_atom} eV/atom</span>
+                <span class="da-tag down">✗ loser</span></div>
+              <div class="da-push down">↓ lower P</div>
+            </div>
           </div>
         </div>
         <div class="da-model">
