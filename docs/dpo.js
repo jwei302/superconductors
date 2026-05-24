@@ -33,16 +33,29 @@ function dpoStatCards(d) {
     </div>`).join("");
 }
 
-/* ---- energy-per-atom distribution shift: baseline (filled) vs DPO (line) ---- */
+/* ---- energy-per-atom distribution: baseline (filled) + every β overlaid ---- */
 function dpoDistChart(elId, d) {
   const el = $d(elId);
   if (!el) return;
   el.innerHTML = "";
   const xs = d.bins.centers;
-  const base = d.baseline.hist, dpo = d.pools[d.primary].hist;
-  const W = el.clientWidth || 660, H = 250, m = { l: 46, r: 16, t: 16, b: 38 };
+  const W = el.clientWidth || 660, H = 280, m = { l: 46, r: 16, t: 16, b: 40 };
   const xmin = d.bins.lo, xmax = d.bins.hi;
-  const ymax = Math.max(...base, ...dpo) * 1.08;
+
+  const COL = { "0.1": "#dc2626", "0.5": "#0d9488", "1": "#2563eb", "5": "#7c3aed", "25": "#d97706" };
+  const series = [{ key: "baseline", hist: d.baseline.hist, color: BASE_COLOR, w: 1.6, dash: null, label: "SFT baseline" }];
+  d.betas.forEach((b) => {
+    const emph = b === d.primary, coll = b === d.collapsed;
+    series.push({
+      key: b, hist: d.pools[b].hist, color: COL[b] || "#888",
+      w: emph ? 2.8 : (coll ? 2.2 : 1.3), dash: coll ? "5 4" : null,
+      label: `β=${b}` + (emph ? " (headline)" : coll ? " (collapsed)" : ""),
+    });
+  });
+
+  let ymax = 0;
+  series.forEach((s) => s.hist.forEach((v) => { if (v > ymax) ymax = v; }));
+  ymax *= 1.08;
   const sx = (x) => m.l + (W - m.l - m.r) * (x - xmin) / (xmax - xmin);
   const sy = (y) => H - m.b - (H - m.t - m.b) * y / ymax;
 
@@ -60,7 +73,6 @@ function dpoDistChart(elId, d) {
   line(m.l, m.t, m.l, H - m.b, "#cbd0d6", 1);
   line(m.l, H - m.b, W - m.r, H - m.b, "#cbd0d6", 1);
 
-  // x ticks
   for (let v = Math.ceil(xmin); v <= xmax; v += 2) {
     const t = document.createElementNS(DNS, "text");
     t.setAttribute("x", sx(v)); t.setAttribute("y", H - m.b + 16); t.setAttribute("text-anchor", "middle");
@@ -78,49 +90,41 @@ function dpoDistChart(elId, d) {
   tt.setAttribute("x", xt + 4); tt.setAttribute("y", m.t + 11); tt.setAttribute("font-size", "9.5");
   tt.setAttribute("fill", "#8a6d00"); tt.textContent = "baseline 25th-pct"; svg.appendChild(tt);
 
-  // filled baseline area
-  const areaPts = xs.map((x, i) => `${sx(x).toFixed(1)} ${sy(base[i]).toFixed(1)}`);
+  // filled baseline area (behind)
+  const bh = d.baseline.hist;
   const area = document.createElementNS(DNS, "path");
-  area.setAttribute("d", `M${sx(xs[0]).toFixed(1)} ${sy(0).toFixed(1)} L` + areaPts.join(" L") +
+  area.setAttribute("d", `M${sx(xs[0]).toFixed(1)} ${sy(0).toFixed(1)} L` +
+    xs.map((x, i) => `${sx(x).toFixed(1)} ${sy(bh[i]).toFixed(1)}`).join(" L") +
     ` L${sx(xs[xs.length - 1]).toFixed(1)} ${sy(0).toFixed(1)} Z`);
-  area.setAttribute("fill", BASE_COLOR); area.setAttribute("fill-opacity", "0.30"); area.setAttribute("stroke", "none");
+  area.setAttribute("fill", BASE_COLOR); area.setAttribute("fill-opacity", "0.25"); area.setAttribute("stroke", "none");
   svg.appendChild(area);
 
-  const poly = (hist, color, width) => {
+  const poly = (hist, color, width, dash) => {
     const p = document.createElementNS(DNS, "path");
     p.setAttribute("d", "M" + xs.map((x, i) => `${sx(x).toFixed(1)} ${sy(hist[i]).toFixed(1)}`).join(" L"));
     p.setAttribute("fill", "none"); p.setAttribute("stroke", color); p.setAttribute("stroke-width", width);
+    if (dash) p.setAttribute("stroke-dasharray", dash);
     p.setAttribute("stroke-linejoin", "round"); svg.appendChild(p);
   };
-  poly(base, BASE_COLOR, 1.6);
-  poly(dpo, DPO_COLOR, 2.6);
+  // thin lines first, emphasized ones on top
+  series.slice().sort((a, b) => a.w - b.w).forEach((s) => poly(s.hist, s.color, s.w, s.dash));
 
-  // legend
-  const leg = [[`SFT baseline`, BASE_COLOR, 1.6], [`DPO β=${d.primary}`, DPO_COLOR, 2.6]];
-  let ly = m.t + 6;
-  leg.forEach(([txt, c, w]) => {
-    line(W - m.r - 96, ly, W - m.r - 78, ly, c, w);
+  // legend (top-right — right side is low density)
+  let ly = m.t + 8;
+  series.forEach((s) => {
+    line(W - m.r - 140, ly, W - m.r - 122, ly, s.color, Math.max(s.w, 1.6), s.dash);
     const t = document.createElementNS(DNS, "text");
-    t.setAttribute("x", W - m.r - 74); t.setAttribute("y", ly + 3); t.setAttribute("font-size", "10");
-    t.setAttribute("fill", "#1a1d21"); t.textContent = txt; svg.appendChild(t);
-    ly += 15;
+    t.setAttribute("x", W - m.r - 118); t.setAttribute("y", ly + 3); t.setAttribute("font-size", "10");
+    t.setAttribute("fill", "#1a1d21"); t.textContent = s.label; svg.appendChild(t);
+    ly += 14;
   });
   el.appendChild(svg);
 }
 
 function renderDpo(d) {
-  const status = $d("dpoStatus");
-  if (!d || !d.pools || !d.pools[d.primary]) {
-    if (status) status.textContent = "DPO results not available.";
-    return;
-  }
+  if (!d || !d.pools || !d.pools[d.primary]) return;
   dpoStatCards(d);
   dpoDistChart("dpoDistChart", d);
-  if (status) {
-    const c = d.pools[d.collapsed];
-    status.innerHTML = `Headline β=${d.primary} · smaller β reward-hacks ` +
-      `(β=${d.collapsed} hits ${(c.hr25 * 100).toFixed(0)}% but collapses to ${c.n_chemsys} chemical systems, excluded).`;
-  }
 }
 
 /* ---- 3Dmol mini crystal (winner / loser viewers) ---- */

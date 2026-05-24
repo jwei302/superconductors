@@ -176,6 +176,8 @@ select {
   padding: 6px 4px; background: #fff; min-height: 120px;
 }
 .run-status { margin-top: 16px; color: var(--muted); font-size: 0.85rem; }
+.chart-cap { margin: 10px 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+.chart-cap em { font-style: normal; color: #b91c1c; font-weight: 600; }
 
 /* DPO result cards — single row of four */
 .dpo-cards {
