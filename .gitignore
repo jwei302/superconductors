@@ -203,3 +203,4 @@ hf_models/
 out/
 *.pdf
 visualization.ipynb
+hydra_jobs/
