@@ -29,7 +29,7 @@
   <div class="meta mono" id="meta"></div>
 
   <div class="how">
-    <p>All three crystal components are denoised jointly by one SE(3)-equivariant graph network:</p>
+    <p>All three crystal components are denoised jointly by one E(3)-equivariant graph network:</p>
     <ul>
       <li><b>Fractional coordinates</b> — diffused on the periodic 3-torus via wrapped-normal score matching, sampled with a predictor&ndash;corrector (Langevin) scheme that respects translational symmetry.</li>
       <li><b>Atom types</b> — each atom is relaxed to a continuous 100-dimensional one-hot vector, diffused with Gaussian DDPM, then decoded back to a discrete element by arg-max.</li>
