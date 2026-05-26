@@ -202,5 +202,6 @@ data/
 hf_models/
 out/
 *.pdf
+!final.pdf
 visualization.ipynb
 hydra_jobs/
