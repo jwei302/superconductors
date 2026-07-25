@@ -21,6 +21,16 @@ main {
   padding: 40px 24px 56px;
 }
 
+.back {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.back:hover { color: var(--accent); }
+
 h1 {
   font-size: 1.35rem;
   font-weight: 600;
